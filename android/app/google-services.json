@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "322706906926",
+    "project_id": "authsystem-firebase0001",
+    "storage_bucket": "authsystem-firebase0001.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:322706906926:android:fa8bc9ae5e7814a2ef24bf",
+        "android_client_info": {
+          "package_name": "com.example.software_development"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTOHAsvpM1lcnHSBef9EQLNEhFU0zfHYg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
