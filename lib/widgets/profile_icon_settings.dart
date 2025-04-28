@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:software_development/screens/home/profile_screen.dart';
+import 'package:software_development/screens/main_navigation.dart';
 
 class ProfileIconSettings extends StatefulWidget {
   final File? profileImage;
@@ -33,24 +35,28 @@ class _ProfileIconSettingsState extends State<ProfileIconSettings> {
     const bubbleWidth = 160.0;
     const bubbleRadius = 8.0;
     const arrowSize = Size(16, 8);
+    const verticalSpacing = 8.0; // gap between icon and bubble
 
     return OverlayEntry(
       builder: (context) => CompositedTransformFollower(
         link: _layerLink,
         showWhenUnlinked: false,
-        offset: Offset(-bubbleWidth/2 + 24, 24 + arrowSize.height),
+        targetAnchor: Alignment.bottomRight,
+        followerAnchor: Alignment.topRight,
+        offset: const Offset(0, verticalSpacing),
         child: Material(
           color: Colors.transparent,
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // Triangle pointer
+              // little triangle
               CustomPaint(
                 size: arrowSize,
                 painter: _TrianglePainter(color: Colors.white),
               ),
 
-              // Bubble container
+              // bubble itself
               Container(
                 width: bubbleWidth,
                 decoration: BoxDecoration(
@@ -69,13 +75,12 @@ class _ProfileIconSettingsState extends State<ProfileIconSettings> {
                   children: [
                     TextButton.icon(
                       onPressed: () {
-                        Navigator.pushNamed(context, '/profile');
-                        _toggleOverlay();
+                        _toggleOverlay();                        // 1) close the popup
+                        MainNavigationScreen.goToProfileTab();   // 2) switch to Profile in the bottom nav
                       },
                       icon: const Icon(Icons.person, color: Colors.black87),
                       label: const Text('My Profile'),
                       style: TextButton.styleFrom(
-                        foregroundColor: Colors.black87,
                         alignment: Alignment.centerLeft,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                       ),
@@ -83,13 +88,12 @@ class _ProfileIconSettingsState extends State<ProfileIconSettings> {
                     const Divider(height: 1),
                     TextButton.icon(
                       onPressed: () {
-                        // TODO: your logout logic
-                        _toggleOverlay();
+                        // your logout logic
+                        ProfileScreen();
                       },
                       icon: const Icon(Icons.logout, color: Colors.black87),
                       label: const Text('Log out'),
                       style: TextButton.styleFrom(
-                        foregroundColor: Colors.black87,
                         alignment: Alignment.centerLeft,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                       ),
@@ -103,6 +107,7 @@ class _ProfileIconSettingsState extends State<ProfileIconSettings> {
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -129,16 +134,18 @@ class _ProfileIconSettingsState extends State<ProfileIconSettings> {
 class _TrianglePainter extends CustomPainter {
   final Color color;
   const _TrianglePainter({required this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
     final path = Path()
       ..moveTo(0, 0)
-      ..lineTo(size.width/2, size.height)
+      ..lineTo(size.width / 2, size.height)
       ..lineTo(size.width, 0)
       ..close();
     canvas.drawPath(path, paint);
   }
+
   @override
-  bool shouldRepaint(_TrianglePainter old) => false;
+  bool shouldRepaint(_TrianglePainter oldDelegate) => false;
 }

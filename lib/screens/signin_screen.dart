@@ -50,7 +50,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+        MaterialPageRoute(builder: (_) => MainNavigationScreen()),
       );
     } on FirebaseAuthException catch (e) {
       setState(() {

@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:software_development/screens/signin_screen.dart';
+import 'package:software_development/widgets/reusable_widget.dart';
 
 void main() async {
 
@@ -18,7 +19,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
         title: 'Bracelyte',
         theme: ThemeData(
-          primarySwatch: Colors.blue,
+          scaffoldBackgroundColor: const Color(0xF0F6F9FF)
+          //primarySwatch: Colors.blue,
         ),
         home: const SignInScreen(),
     );
