@@ -148,7 +148,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       if (_passwordTextController.text.isEmpty) {
                         _passwordError = 'This field is required.';
                       } else if (!isValidPassword(_passwordTextController.text)) {
-                        _passwordError = 'Password must contain at least 1 symbol, 1 capital letter, 1 number, and be 7+ characters.';
+                        _passwordError = 'Password must contain at least 1 symbol, 1 capital letter, 1 number, and at least 8 characters.';
                       } else {
                         _passwordError = '';
                       }
