@@ -87,55 +87,56 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     required bool isObscured,
     bool isVisible = false,
     required IconData icon,
-    VoidCallback? toggleVisibility, // make nullable
+    VoidCallback? toggleVisibility,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), // reduced padding
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10), // slightly reduced
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.3),
+                color: Colors.grey.withOpacity(0.2), // subtle shadow
                 spreadRadius: 1,
-                blurRadius: 6,
-                offset: const Offset(0, 6),
+                blurRadius: 4,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
           child: TextField(
-              controller: controller,
-              obscureText: isObscured && !isVisible,
-              onChanged: onChanged,
-              decoration: InputDecoration(
-                hintText: hint,
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                prefixIcon: Icon(icon),
-                suffixIcon: toggleVisibility != null
-                    ? IconButton(
-                  icon: Icon(
-                    isVisible ? Icons.visibility : Icons.visibility_off,
-                    color: Colors.grey,
-                  ),
-                  onPressed: toggleVisibility,
-                )
-                    : null,
-              ),
+            controller: controller,
+            obscureText: isObscured && !isVisible,
+            onChanged: onChanged,
+            decoration: InputDecoration(
+              hintText: hint,
+              border: InputBorder.none,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10), // reduced input height
+              prefixIcon: Icon(icon),
+              suffixIcon: toggleVisibility != null
+                  ? IconButton(
+                icon: Icon(
+                  isVisible ? Icons.visibility : Icons.visibility_off,
+                  color: Colors.grey,
+                ),
+                onPressed: toggleVisibility,
+              )
+                  : null,
             ),
           ),
+        ),
         if (errorText.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(errorText, style: const TextStyle(color: Colors.red)),
+            padding: const EdgeInsets.only(top: 6.0, left: 4.0),
+            child: Text(errorText, style: const TextStyle(color: Colors.red, fontSize: 13)),
           ),
       ],
     );
   }
+
 
   @override
   Widget build(BuildContext context) {

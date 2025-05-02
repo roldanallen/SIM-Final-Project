@@ -43,6 +43,8 @@ dependencies:
   image_picker: ^1.1.2
   shared_preferences: ^2.0.15
   animations: ^2.0.5
+  table_calendar: ^3.0.9
+  fl_chart: ^0.66.1
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:software_development/screens/tools/todo_tool.dart';
 import 'package:software_development/screens/tools/workout_tool.dart';
 import 'package:software_development/screens/tools/diet_tool.dart';
@@ -12,106 +11,82 @@ class ToolsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final today = DateTime.now();
-    final extraTimes = <DateTime>[]; // replace with real task times
-
     return Scaffold(
       backgroundColor: const Color(0xF0F6F9FF),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(30),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
                 'Creative Tools',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 24),
 
-              // Tool Buttons with navigation
               _buildToolButton(
                 context,
-                'To-do List',
-                const Color(0xFFFF8CDE),
-                    () => Navigator.push(
+                title: 'To-do List',
+                description: 'Create and manage your daily tasks.',
+                color: const Color(0xFFFF8CDE),
+                onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const TodoToolPage()),
                 ),
               ),
               _buildToolButton(
                 context,
-                'Workout Plan',
-                const Color(0xFFD88BFF),
-                    () => Navigator.push(
+                title: 'Workout Plan',
+                description: 'Plan and track your workouts.',
+                color: const Color(0xFFD88BFF),
+                onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const WorkoutToolPage()),
                 ),
               ),
               _buildToolButton(
                 context,
-                'Diet Plan',
-                const Color(0xFF8BACFF),
-                    () => Navigator.push(
+                title: 'Diet Plan',
+                description: 'Log meals and maintain a healthy diet.',
+                color: const Color(0xFF8BACFF),
+                onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const DietToolPage()),
                 ),
               ),
               _buildToolButton(
                 context,
-                'Gym',
-                const Color(0xFF8BC9FF),
-                    () => Navigator.push(
+                title: 'Gym',
+                description: 'Track gym sessions and progress.',
+                color: const Color(0xFF8BC9FF),
+                onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const GymToolPage()),
                 ),
               ),
               _buildToolButton(
                 context,
-                'Water Reminder',
-                const Color(0xFF8BDAFF),
-                    () => Navigator.push(
+                title: 'Water Reminder',
+                description: 'Stay hydrated with reminders.',
+                color: const Color(0xFF8BDAFF),
+                onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const WaterToolPage()),
                 ),
               ),
               _buildToolButton(
                 context,
-                'Custom Plan',
-                const Color(0xFF8BFFC7),
-                    () => Navigator.push(
+                title: 'Custom Plan',
+                description: 'Design your own personal plans.',
+                color: const Color(0xFF8BFFC7),
+                onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const CustomToolPage()),
                 ),
               ),
 
               const SizedBox(height: 32),
-
-              // Schedule Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text(
-                    'Schedule',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                  ),
-                  Icon(Icons.calendar_today),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                DateFormat('MMMM d').format(today),
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-
-              // Gantt Timeline (30-min slots, first 6 rows)
-              _buildGanttTimeline(
-                reference: today,
-                startHour: 6,
-                defaultCount: 6,
-                extraTimes: extraTimes,
-              ),
             ],
           ),
         ),
@@ -120,104 +95,53 @@ class ToolsScreen extends StatelessWidget {
   }
 
   Widget _buildToolButton(
-      BuildContext context,
-      String label,
-      Color color,
-      VoidCallback onTap,
-      ) {
+      BuildContext context, {
+        required String title,
+        required String description,
+        required Color color,
+        required VoidCallback onTap,
+      }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: GestureDetector(
         onTap: onTap,
-        child: Center(
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.85,
-            height: 48,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                const SizedBox(width: 24),
-                const Icon(Icons.circle, size: 12, color: Colors.white),
-                const SizedBox(width: 16),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                description,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
-
-  List<DateTime> _getTimelineTicks(
-      DateTime reference, {
-        int startHour = 6,
-        int defaultCount = 6,
-        List<DateTime> extraTimes = const [],
-      }) {
-    final ticks = <DateTime>[];
-    for (var i = 0; i < defaultCount; i++) {
-      ticks.add(
-        DateTime(reference.year, reference.month, reference.day)
-            .add(Duration(hours: startHour, minutes: i * 30)),
-      );
-    }
-    for (var et in extraTimes) {
-      final totalMin = et.hour * 60 + et.minute;
-      final slotMin = (totalMin ~/ 30) * 30;
-      final slotTime = DateTime(reference.year, reference.month, reference.day)
-          .add(Duration(minutes: slotMin));
-      if (!ticks.contains(slotTime)) ticks.add(slotTime);
-    }
-    ticks.sort();
-    return ticks;
-  }
-
-  Widget _buildGanttTimeline({
-    required DateTime reference,
-    int startHour = 6,
-    int defaultCount = 6,
-    List<DateTime> extraTimes = const [],
-  }) {
-    final ticks = _getTimelineTicks(
-      reference,
-      startHour: startHour,
-      defaultCount: defaultCount,
-      extraTimes: extraTimes,
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: ticks.map((dt) {
-        final label = DateFormat('h:mm a').format(dt);
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 60,
-                child: Text(label, style: const TextStyle(fontSize: 12)),
-              ),
-              Expanded(child: Divider(thickness: 1.2)),
-            ],
-          ),
-        );
-      }).toList(),
     );
   }
 }

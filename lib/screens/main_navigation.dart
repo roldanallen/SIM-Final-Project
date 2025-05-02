@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:software_development/screens/home/home_screen.dart';
 import 'package:software_development/screens/home/tools_screen.dart';
 import 'package:software_development/screens/home/profile_screen.dart';
+import 'package:software_development/screens/home/activity_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   MainNavigationScreen({Key? key}) : super(key: _globalKey);
@@ -23,7 +24,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _pages = [
     const HomeScreen(key: ValueKey('home')),
     const ToolsScreen(key: ValueKey('tools')),
-    const ToolsScreen(key: ValueKey('browse')), // or BrowseScreen if needed
+    const ActivityPage(key: ValueKey('activity')), // or BrowseScreen if needed
     const ProfileScreen(key: ValueKey('profile')),
   ];
 
