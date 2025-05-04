@@ -9,9 +9,8 @@ class ToDoToolPage extends StatefulWidget {
 }
 
 class _ToDoToolPageState extends State<ToDoToolPage> {
-  // Controllers & state
   final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descController  = TextEditingController();
+  final TextEditingController _descController = TextEditingController();
 
   DateTime? _startDate;
   DateTime? _endDate;
@@ -19,8 +18,8 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
   String? _status;
 
   List<String> steps = [];
+  List<bool> stepCompleted = [];
 
-  // Pick start or end date
   Future<void> _selectDate(bool isStart) async {
     final picked = await showDatePicker(
       context: context,
@@ -30,25 +29,48 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
     );
     if (picked != null) {
       setState(() {
-        if (isStart) {
-          _startDate = picked;
-        } else {
-          _endDate = picked;
-        }
+        isStart ? _startDate = picked : _endDate = picked;
       });
     }
   }
 
-  // Add a step to the list
   void _addStep(String step) {
     setState(() {
       steps.add(step);
+      stepCompleted.add(false);
     });
   }
 
-  // Save button handler
+  void _deleteStep(int index) {
+    setState(() {
+      steps.removeAt(index);
+      stepCompleted.removeAt(index);
+    });
+  }
+
+  void _toggleStep(int index) {
+    setState(() {
+      stepCompleted[index] = !stepCompleted[index];
+    });
+  }
+
+  void _editStep(int index, String newText) {
+    setState(() {
+      steps[index] = newText;
+    });
+  }
+
+  void _reorderSteps(int oldIndex, int newIndex) {
+    setState(() {
+      if (oldIndex < newIndex) newIndex--;
+      final step = steps.removeAt(oldIndex);
+      final complete = stepCompleted.removeAt(oldIndex);
+      steps.insert(newIndex, step);
+      stepCompleted.insert(newIndex, complete);
+    });
+  }
+
   void _saveTask() {
-    // TODO: replace with your actual save logic
     print('--- To‑do Task Saved ---');
     print('Title      : ${_titleController.text}');
     print('Start Date : $_startDate');
@@ -57,6 +79,7 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
     print('Status     : $_status');
     print('Description: ${_descController.text}');
     print('Steps      : $steps');
+    print('Completed  : $stepCompleted');
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('To‑do task saved!')),
@@ -72,26 +95,30 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Universal fields
             TaskTitleInput(controller: _titleController),
             DateInputRow(
               startDate: _startDate,
               endDate: _endDate,
               onStartTap: () => _selectDate(true),
-              onEndTap:   () => _selectDate(false),
+              onEndTap: () => _selectDate(false),
             ),
             DropdownInputRow(
-              priority:         _priority,
-              status:           _status,
+              priority: _priority,
+              status: _status,
               onPriorityChanged: (v) => setState(() => _priority = v),
-              onStatusChanged:   (v) => setState(() => _status   = v),
+              onStatusChanged: (v) => setState(() => _status = v),
             ),
             DescriptionField(controller: _descController),
 
-            // To‑do‑specific Steps
+            // Updated StepList
             StepList(
-              steps:     steps,
+              steps: steps,
+              completed: stepCompleted,
               onAddStep: _addStep,
+              onDeleteStep: _deleteStep,
+              onToggleStep: _toggleStep,
+              onEditStep: _editStep,
+              onReorderSteps: _reorderSteps,
             ),
 
             const SizedBox(height: 20),
@@ -103,166 +130,111 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
   }
 }
 
+
 /// ------------------------------------------------------------------------
 /// To‑do‑specific widget: shows current steps (or "No steps specified") +
 /// an "Add Step" button that pops up an input dialog.
 /// ------------------------------------------------------------------------
-class StepList extends StatefulWidget {
+class StepList extends StatelessWidget {
   final List<String> steps;
+  final List<bool> completed;
   final void Function(String) onAddStep;
-  const StepList({super.key, required this.steps, required this.onAddStep});
+  final void Function(int) onDeleteStep;
+  final void Function(int) onToggleStep;
+  final void Function(int, String) onEditStep;
+  final void Function(int, int) onReorderSteps;
 
-  @override
-  _StepListState createState() => _StepListState();
-}
+  const StepList({
+    super.key,
+    required this.steps,
+    required this.completed,
+    required this.onAddStep,
+    required this.onDeleteStep,
+    required this.onToggleStep,
+    required this.onEditStep,
+    required this.onReorderSteps,
+  });
 
-class _StepListState extends State<StepList> {
-  late List<bool> _stepCompleted;
-
-  @override
-  void initState() {
-    super.initState();
-    _stepCompleted = List<bool>.filled(widget.steps.length, false);
-  }
-
-  // Ensure the stepCompleted list matches the number of steps
-  @override
-  void didUpdateWidget(covariant StepList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_stepCompleted.length != widget.steps.length) {
-      setState(() {
-        _stepCompleted = List<bool>.filled(widget.steps.length, false);
-      });
-    }
-  }
-
-  void _toggleCompletion(int index) {
-    setState(() {
-      _stepCompleted[index] = !_stepCompleted[index];
-    });
-  }
-
-  void _editStep(int index) async {
-    final controller = TextEditingController(text: widget.steps[index]);
-    final result = await showDialog<String>(context: context, builder: (context) {
-      return AlertDialog(
-        title: const Text('Edit Step'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'Edit step'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty) {
-                Navigator.pop(context, text);
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      );
-    });
-
-    if (result != null) {
-      setState(() {
-        widget.steps[index] = result;
-      });
-    }
-  }
-
-  void _deleteStep(int index) {
-    setState(() {
-      widget.steps.removeAt(index);
-      _stepCompleted.removeAt(index); // Ensure the completion state is also removed
-    });
-  }
-
-  void _showStepOptions(int index) {
+  void _showStepOptions(BuildContext context, int index) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Edit'),
-              onTap: () {
-                Navigator.pop(context);
-                _editStep(index);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('Delete'),
-              onTap: () {
-                Navigator.pop(context);
-                _deleteStep(index);
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                _stepCompleted[index] ? Icons.undo : Icons.check,
-              ),
-              title: Text(
-                _stepCompleted[index] ? 'Mark as Undone' : 'Mark as Done',
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                _toggleCompletion(index);
-              },
-            ),
-          ],
-        ),
+      builder: (_) => Wrap(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.edit),
+            title: const Text('Edit'),
+            onTap: () async {
+              Navigator.pop(context);
+              final controller = TextEditingController(text: steps[index]);
+              final result = await showDialog<String>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Edit Step'),
+                  content: TextField(controller: controller),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                    ElevatedButton(
+                      onPressed: () {
+                        final text = controller.text.trim();
+                        if (text.isNotEmpty) Navigator.pop(context, text);
+                      },
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
+              );
+              if (result != null) {
+                onEditStep(index, result);
+              }
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete),
+            title: const Text('Delete'),
+            onTap: () {
+              Navigator.pop(context);
+              onDeleteStep(index);
+            },
+          ),
+          ListTile(
+            leading: Icon(completed[index] ? Icons.undo : Icons.check),
+            title: Text(completed[index] ? 'Mark as Undone' : 'Mark as Done'),
+            onTap: () {
+              Navigator.pop(context);
+              onToggleStep(index);
+            },
+          ),
+        ],
       ),
     );
   }
 
-  void _handleAddStep() async {
-    final dialogCtrl = TextEditingController();
+  void _handleAddStep(BuildContext context) async {
+    final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (_) => AlertDialog(
         title: const Text('Add Step'),
-        content: TextField(
-          controller: dialogCtrl,
-          decoration: const InputDecoration(hintText: 'Enter a step'),
-        ),
+        content: TextField(controller: controller),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
-              final text = dialogCtrl.text.trim();
-              if (text.isNotEmpty) {
-                Navigator.pop(context, text);
-              }
+              final text = controller.text.trim();
+              if (text.isNotEmpty) Navigator.pop(context, text);
             },
             child: const Text('Add'),
           ),
         ],
       ),
     );
-    if (result != null) {
-      setState(() {
-        widget.onAddStep(result);
-        _stepCompleted.add(false); // New step starts as unchecked
-      });
-    }
+    if (result != null) onAddStep(result);
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
-      width: double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -270,80 +242,64 @@ class _StepListState extends State<StepList> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Steps',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+              const Text('Steps', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               TextButton.icon(
-                onPressed: _handleAddStep,
+                onPressed: () => _handleAddStep(context),
                 icon: const Icon(Icons.add),
                 label: const Text('Add Step'),
               ),
             ],
           ),
-
           const SizedBox(height: 6),
-
-          // Step Items
-          if (widget.steps.isEmpty)
+          if (steps.isEmpty)
             Center(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'No steps specified.',
-                  style: TextStyle(color: Colors.grey[600]),
-                ),
+                padding: const EdgeInsets.all(16),
+                child: Text('No steps specified.', style: TextStyle(color: Colors.grey[600])),
               ),
             )
           else
             ReorderableListView(
               shrinkWrap: true,
-              onReorder: (oldIndex, newIndex) {
-                setState(() {
-                  if (oldIndex < newIndex) {
-                    newIndex -= 1;
-                  }
-                  final step = widget.steps.removeAt(oldIndex);
-                  final completion = _stepCompleted.removeAt(oldIndex);
-                  widget.steps.insert(newIndex, step);
-                  _stepCompleted.insert(newIndex, completion);
-                });
-              },
-              children: List.generate(widget.steps.length, (index) {
+              physics: const NeverScrollableScrollPhysics(),
+              onReorder: onReorderSteps,
+              children: List.generate(steps.length, (index) {
                 return GestureDetector(
-                  key: Key('$index'), // Needed for reorder
-                  onLongPress: () => _showStepOptions(index),
+                  key: Key('$index'),
+                  onLongPress: () => _showStepOptions(context, index),
                   child: Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.symmetric(vertical: 4),
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+                    padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 14),
                     decoration: BoxDecoration(
-                      color: _stepCompleted[index]
-                          ? Colors.green[100]
-                          : Colors.blue[50],
-                      borderRadius: BorderRadius.circular(10),
+                      color: completed[index] ? Colors.green[100] : Colors.white,
+                      borderRadius: BorderRadius.circular(20), // more rounded
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min, // makes it shrink-wrap around contents
                       children: [
                         IconButton(
                           icon: Icon(
-                            _stepCompleted[index]
+                            completed[index]
                                 ? Icons.check_box
                                 : Icons.check_box_outline_blank,
                           ),
-                          onPressed: () => _toggleCompletion(index),
+                          onPressed: () => onToggleStep(index),
                         ),
-                        Expanded(
+                        Flexible(
                           child: Text(
-                            widget.steps[index],
+                            steps[index],
                             style: TextStyle(
-                              fontSize: 16,
-                              decoration: _stepCompleted[index]
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                              color: _stepCompleted[index]
-                                  ? Colors.black54
-                                  : Colors.black87,
+                              fontSize: 15,
+                              decoration:
+                              completed[index] ? TextDecoration.lineThrough : null,
+                              color: completed[index] ? Colors.black54 : Colors.black87,
                             ),
                           ),
                         ),
