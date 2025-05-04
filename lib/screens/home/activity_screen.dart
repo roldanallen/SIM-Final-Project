@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:software_development/screens/tools/tools_summary.dart';
+import 'package:software_development/screens/tools/tools_metric.dart';// Import MySummary
 
 class ActivityPage extends StatefulWidget {
   const ActivityPage({Key? key}) : super(key: key);
 
   @override
-  _ActivityPageState createState() => _ActivityPageState();
+  State<ActivityPage> createState() => _ActivityPageState();
 }
 
 class _ActivityPageState extends State<ActivityPage> {
   String selectedTool = 'All';
 
+  // Data for pie chart and summary
   final Map<String, int> taskCounts = {
     'To-do List': 4,
     'Gym': 2,
@@ -19,280 +22,191 @@ class _ActivityPageState extends State<ActivityPage> {
 
   final Map<String, Map<String, String>> summaryStats = {
     'To-do List': {
-      'Total Task': '4',
-      'Tasks This Month': '2',
-      'Completed': '2',
-      'On‑going': '2',
+      'Total Task': '5',
+      'Task this month': '8',
+      'Task Completed': '4',
+      'On going': '1',
     },
     'Gym': {
-      'Total Sessions': '2',
-      'This Month': '1',
-      'Calories Burned': '350 kcal',
-      'Missed': '1',
+      'Total Task': '2',
+      'Task this month': '2',
+      'Task Completed': '1',
+      'On going': '1',
     },
     'Water Reminder': {
-      'Total Logs': '1',
-      'Daily Avg': '5 glasses',
-      'Best Day': 'Apr 30 (8)',
-      'Streak': '1 day',
+      'Total Task': '4',
+      'Task this month': '2',
+      'Task Completed': '3',
+      'On going': '1',
     },
   };
 
-  Color _colorForTool(String tool, {bool faded = false}) {
-    Color color;
-    switch (tool) {
+
+  // Bar chart data builder
+  List<BarChartGroupData> _buildBarData() {
+    switch (selectedTool) {
       case 'To-do List':
-        color = const Color(0xFFFF8CDE);
-        break;
+        return [
+          _bar(0, 4), // Created
+          _bar(1, 2), // Completed
+          _bar(2, 2), // Ongoing
+        ];
       case 'Gym':
-        color = const Color(0xFF8BC9FF);
-        break;
+        return [
+          _bar(0, 2),   // Sessions
+          _bar(1, 1),   // Missed
+          _bar(2, 350), // Calories
+        ];
       case 'Water Reminder':
-        color = const Color(0xFF8BDAFF);
-        break;
-      default:
-        color = Colors.grey;
+        return [
+          _bar(0, 1), // Logs
+          _bar(1, 5), // Avg Intake
+          _bar(2, 8), // Best Day
+        ];
+      default: // All
+        return [
+          _bar(0, 10), // Created (sum of all)
+          _bar(1, 5), // Completed (sum of To‑do + Gym)
+          _bar(2, 3), // Missed/Ongoing
+        ];
     }
-    return faded ? color.withOpacity(0.3) : color;
   }
 
+  BarChartGroupData _bar(int x, double y) => BarChartGroupData(
+    x: x,
+    barRods: [
+      BarChartRodData(toY: y, width: 20, borderRadius: BorderRadius.circular(4)),
+    ],
+  );
+
+  List<String> _barLabels() {
+    switch (selectedTool) {
+      case 'To-do List':
+        return ['Created', 'Done', 'Ongoing'];
+      case 'Gym':
+        return ['Sessions', 'Missed', 'Calories'];
+      case 'Water Reminder':
+        return ['Logs', 'Avg', 'Best'];
+      default:
+        return ['Created', 'Done', 'Missed'];
+    }
+  }
+
+  // Pie chart sections
   List<PieChartSectionData> _buildPieSections() {
-    final total = taskCounts.values.fold(0, (a, b) => a + b);
-
+    final total = taskCounts.values.fold(0, (a, b) => a + b).toDouble();
     return taskCounts.entries.map((e) {
-      final percent = ((e.value / total) * 100).toStringAsFixed(1);
-      final isSelected = selectedTool == 'All' || e.key == selectedTool;
-      final showLabel = e.value > 0;
-
+      final isActive = selectedTool == 'All' || e.key == selectedTool;
+      final color = _colorForTool(e.key).withOpacity(isActive ? 1 : 0.3);
+      final percent = (e.value / (total == 0 ? 1 : total) * 100).toStringAsFixed(1);
       return PieChartSectionData(
-        color: _colorForTool(e.key, faded: !isSelected),
+        color: color,
         value: e.value.toDouble(),
-        title: showLabel ? '$percent%' : '',
-        titleStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
+        title: e.value > 0 ? '$percent%' : '',
+        titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
         radius: 70,
       );
     }).toList();
   }
 
+  // Base color per tool
+  Color _colorForTool(String tool) {
+    switch (tool) {
+      case 'To-do List':
+        return const Color(0xFFFF8CDE);
+      case 'Gym':
+        return const Color(0xFF8BC9FF);
+      case 'Water Reminder':
+        return const Color(0xFF8BDAFF);
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // Callback to update selectedTool
+  void _updateSelectedTool(String tool) {
+    setState(() {
+      selectedTool = tool;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final currentStats = summaryStats[selectedTool == 'All' ? 'To-do List' : selectedTool]!;
     final totalTasks = taskCounts.values.fold(0, (a, b) => a + b);
 
     return Scaffold(
       backgroundColor: const Color(0xF0F6F9FF),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'My Activity',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 52, 24, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Pie Chart
+            const Text('My Activity', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 24),
+            Container(
+              width: double.infinity,
+              height: 280,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 12, offset: Offset(0, 6))],
               ),
-              const SizedBox(height: 10),
-              const Divider(thickness: 2),
-
-              const Text(
-                'Task Completion',
-                style: TextStyle(fontSize: 18),
-              ),
-
-              const SizedBox(height: 30),
-
-              // ——— Chart Section ———
-              Center(
-                child: Container(
-                  width: 500,
-                  height: 300,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      PieChart(
-                        PieChartData(
-                          sections: _buildPieSections(),
-                          centerSpaceRadius: 55,
-                          sectionsSpace: 4,
-                        ),
-                        swapAnimationDuration: const Duration(milliseconds: 500),
-                        swapAnimationCurve: Curves.easeInOut,
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'Total',
-                            style: TextStyle(fontSize: 14, color: Colors.grey),
-                          ),
-                          Text(
-                            '$totalTasks',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      )
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              // ——— Legend ———
-              Center(
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 16,
-                  runSpacing: 10,
-                  children: taskCounts.keys.map((tool) {
-                    final isSelected = selectedTool == 'All' || selectedTool == tool;
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 12,
-                          height: 12,
-                          margin: const EdgeInsets.only(right: 6),
-                          decoration: BoxDecoration(
-                            color: _colorForTool(tool, faded: !isSelected),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        Text(tool, style: const TextStyle(fontSize: 14)),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-              const Divider(thickness: 1.2),
-              const SizedBox(height: 16),
-
-              // ——— My Summary ———
-              const Text(
-                'My Summary',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-
-              // ——— Dropdown with color box ———
-              Row(
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  Container(
-                    width: 12,
-                    height: 12,
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      color: selectedTool == 'All'
-                          ? Colors.grey
-                          : _colorForTool(selectedTool),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+                  PieChart(
+                    PieChartData(sections: _buildPieSections(), centerSpaceRadius: 55, sectionsSpace: 4),
+                    swapAnimationDuration: const Duration(milliseconds: 500),
+                    swapAnimationCurve: Curves.easeInOut,
                   ),
-                  DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: selectedTool,
-                      icon: const Icon(Icons.arrow_drop_down),
-                      items: [
-                        const DropdownMenuItem(
-                          value: 'All',
-                          child: Text('All'),
-                        ),
-                        ...taskCounts.keys.map((tool) {
-                          return DropdownMenuItem(
-                            value: tool,
-                            child: Text(tool),
-                          );
-                        }),
-                      ],
-                      onChanged: (tool) {
-                        if (tool != null) setState(() => selectedTool = tool);
-                      },
-                    ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Total Tasks', style: TextStyle(color: Colors.grey)),
+                      Text('$totalTasks', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    ],
                   ),
                 ],
               ),
-
-              const SizedBox(height: 16),
-
-              // ——— Summary Grid ———
-              GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 1.3,
-                children: currentStats.entries.map((entry) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          entry.key,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          entry.value,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
+            ),
+            const SizedBox(height: 24),
+            Center(
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 10,
+                alignment: WrapAlignment.center,
+                children: taskCounts.keys.map((tool) {
+                  final isActive = selectedTool == 'All' || selectedTool == tool;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 12, height: 12, margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(color: _colorForTool(tool).withOpacity(isActive?1:0.3), borderRadius: BorderRadius.circular(2)),
+                      ),
+                      Text(tool, style: const TextStyle(fontSize: 14)),
+                    ],
                   );
                 }).toList(),
               ),
+            ),
 
-              // Statistics
-              const SizedBox(height: 50),
-              const Divider(thickness: 2),
-              const SizedBox(height: 24),
+            const SizedBox(height: 56),
+            // My Summary (integrating MySummary widget)
+            MySummary(
+              selectedTool: selectedTool,
+              summaryStats: summaryStats,
+              onToolChanged: (tool) => setState(() => selectedTool = tool),
+            ),
 
-              const Text(
-                'Statistics',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
+            const SizedBox(height: 40),
+            const Divider(thickness: 2),
+
+            ToolsStatistics(
+              selectedTool: selectedTool,
+              summaryStats: summaryStats,
+            ),
+          ],
         ),
       ),
     );

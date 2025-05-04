@@ -1,191 +1,359 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:software_development/widgets/reusable_tools.dart';
 
-class TodoToolPage extends StatefulWidget {
-  const TodoToolPage({super.key});
+class ToDoToolPage extends StatefulWidget {
+  const ToDoToolPage({super.key});
 
   @override
-  State<TodoToolPage> createState() => _TodoToolPageState();
+  State<ToDoToolPage> createState() => _ToDoToolPageState();
 }
 
-class _TodoToolPageState extends State<TodoToolPage> {
-  final _formKey = GlobalKey<FormState>();
+class _ToDoToolPageState extends State<ToDoToolPage> {
+  // Controllers & state
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descController  = TextEditingController();
 
-  String _title = '';
-  String _priority = 'Medium';
-  String _status = 'Not yet started';
   DateTime? _startDate;
   DateTime? _endDate;
-  String _description = '';
+  String? _priority;
+  String? _status;
 
-  Duration? _timeLeft;
+  List<String> steps = [];
 
-  Future<void> _pickDateTime(bool isStart) async {
-    DateTime now = DateTime.now();
-    final DateTime? picked = await showDatePicker(
+  // Pick start or end date
+  Future<void> _selectDate(bool isStart) async {
+    final picked = await showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: now.subtract(const Duration(days: 365)),
-      lastDate: now.add(const Duration(days: 365)),
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
     );
-
     if (picked != null) {
-      final TimeOfDay? time = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(now),
-      );
-
-      if (time != null) {
-        final DateTime fullDateTime = DateTime(
-          picked.year,
-          picked.month,
-          picked.day,
-          time.hour,
-          time.minute,
-        );
-
-        setState(() {
-          if (isStart) {
-            _startDate = fullDateTime;
-          } else {
-            _endDate = fullDateTime;
-          }
-          if (_startDate != null && _endDate != null) {
-            _timeLeft = _endDate!.difference(_startDate!);
-          }
-        });
-      }
+      setState(() {
+        if (isStart) {
+          _startDate = picked;
+        } else {
+          _endDate = picked;
+        }
+      });
     }
+  }
+
+  // Add a step to the list
+  void _addStep(String step) {
+    setState(() {
+      steps.add(step);
+    });
+  }
+
+  // Save button handler
+  void _saveTask() {
+    // TODO: replace with your actual save logic
+    print('--- To‑do Task Saved ---');
+    print('Title      : ${_titleController.text}');
+    print('Start Date : $_startDate');
+    print('End Date   : $_endDate');
+    print('Priority   : $_priority');
+    print('Status     : $_status');
+    print('Description: ${_descController.text}');
+    print('Steps      : $steps');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('To‑do task saved!')),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create To-do Task'),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
+      appBar: AppBar(title: const Text('Create To‑do List')),
+      backgroundColor: const Color(0xFFF0F6F9),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Universal fields
+            TaskTitleInput(controller: _titleController),
+            DateInputRow(
+              startDate: _startDate,
+              endDate: _endDate,
+              onStartTap: () => _selectDate(true),
+              onEndTap:   () => _selectDate(false),
+            ),
+            DropdownInputRow(
+              priority:         _priority,
+              status:           _status,
+              onPriorityChanged: (v) => setState(() => _priority = v),
+              onStatusChanged:   (v) => setState(() => _status   = v),
+            ),
+            DescriptionField(controller: _descController),
+
+            // To‑do‑specific Steps
+            StepList(
+              steps:     steps,
+              onAddStep: _addStep,
+            ),
+
+            const SizedBox(height: 20),
+            SaveButton(onPressed: _saveTask),
+          ],
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Form(
-          key: _formKey,
-          child: ListView(
+    );
+  }
+}
+
+/// ------------------------------------------------------------------------
+/// To‑do‑specific widget: shows current steps (or "No steps specified") +
+/// an "Add Step" button that pops up an input dialog.
+/// ------------------------------------------------------------------------
+class StepList extends StatefulWidget {
+  final List<String> steps;
+  final void Function(String) onAddStep;
+  const StepList({super.key, required this.steps, required this.onAddStep});
+
+  @override
+  _StepListState createState() => _StepListState();
+}
+
+class _StepListState extends State<StepList> {
+  late List<bool> _stepCompleted;
+
+  @override
+  void initState() {
+    super.initState();
+    _stepCompleted = List<bool>.filled(widget.steps.length, false);
+  }
+
+  // Ensure the stepCompleted list matches the number of steps
+  @override
+  void didUpdateWidget(covariant StepList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_stepCompleted.length != widget.steps.length) {
+      setState(() {
+        _stepCompleted = List<bool>.filled(widget.steps.length, false);
+      });
+    }
+  }
+
+  void _toggleCompletion(int index) {
+    setState(() {
+      _stepCompleted[index] = !_stepCompleted[index];
+    });
+  }
+
+  void _editStep(int index) async {
+    final controller = TextEditingController(text: widget.steps[index]);
+    final result = await showDialog<String>(context: context, builder: (context) {
+      return AlertDialog(
+        title: const Text('Edit Step'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'Edit step'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isNotEmpty) {
+                Navigator.pop(context, text);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      );
+    });
+
+    if (result != null) {
+      setState(() {
+        widget.steps[index] = result;
+      });
+    }
+  }
+
+  void _deleteStep(int index) {
+    setState(() {
+      widget.steps.removeAt(index);
+      _stepCompleted.removeAt(index); // Ensure the completion state is also removed
+    });
+  }
+
+  void _showStepOptions(int index) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('Edit'),
+              onTap: () {
+                Navigator.pop(context);
+                _editStep(index);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete),
+              title: const Text('Delete'),
+              onTap: () {
+                Navigator.pop(context);
+                _deleteStep(index);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                _stepCompleted[index] ? Icons.undo : Icons.check,
+              ),
+              title: Text(
+                _stepCompleted[index] ? 'Mark as Undone' : 'Mark as Done',
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _toggleCompletion(index);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _handleAddStep() async {
+    final dialogCtrl = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Step'),
+        content: TextField(
+          controller: dialogCtrl,
+          decoration: const InputDecoration(hintText: 'Enter a step'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final text = dialogCtrl.text.trim();
+              if (text.isNotEmpty) {
+                Navigator.pop(context, text);
+              }
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+    if (result != null) {
+      setState(() {
+        widget.onAddStep(result);
+        _stepCompleted.add(false); // New step starts as unchecked
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Label + Add Button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Title Task
-              TextFormField(
-                decoration: const InputDecoration(labelText: 'Task Title'),
-                validator: (value) => value == null || value.isEmpty
-                    ? 'Title is required'
-                    : null,
-                onChanged: (value) => _title = value,
+              const Text(
+                'Steps',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
-              const SizedBox(height: 20),
-
-              // Priority
-              DropdownButtonFormField<String>(
-                value: _priority,
-                decoration: const InputDecoration(labelText: 'Priority'),
-                items: ['Low', 'Medium', 'High']
-                    .map((level) => DropdownMenuItem(
-                  value: level,
-                  child: Text(level),
-                ))
-                    .toList(),
-                onChanged: (value) => setState(() {
-                  _priority = value!;
-                }),
-              ),
-              const SizedBox(height: 20),
-
-              // Status
-              DropdownButtonFormField<String>(
-                value: _status,
-                decoration: const InputDecoration(labelText: 'Status'),
-                items: ['Not yet started', 'In Progress', 'Completed']
-                    .map((status) => DropdownMenuItem(
-                  value: status,
-                  child: Text(status),
-                ))
-                    .toList(),
-                onChanged: (value) => setState(() {
-                  _status = value!;
-                }),
-              ),
-              const SizedBox(height: 20),
-
-              // Start Date
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Start Date & Time'),
-                subtitle: Text(_startDate != null
-                    ? DateFormat('yyyy-MM-dd – HH:mm').format(_startDate!)
-                    : 'Not set'),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () => _pickDateTime(true),
-              ),
-
-              // End Date
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('End Date & Time'),
-                subtitle: Text(_endDate != null
-                    ? DateFormat('yyyy-MM-dd – HH:mm').format(_endDate!)
-                    : 'Not set'),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () => _pickDateTime(false),
-              ),
-
-              // Time Left
-              if (_timeLeft != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10, bottom: 20),
-                  child: Text(
-                    'Time left: ${_timeLeft!.inHours} hrs ${_timeLeft!.inMinutes.remainder(60)} mins',
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                ),
-
-              // Description
-              TextFormField(
-                decoration: const InputDecoration(
-                  labelText: 'Description (optional)',
-                ),
-                maxLines: 3,
-                onChanged: (value) => _description = value,
-              ),
-              const SizedBox(height: 30),
-
-              // Save / Cancel Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Cancel'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        // TODO: Save data to backend or state
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Task saved')),
-                        );
-                        Navigator.pop(context);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
-                    ),
-                    child: const Text('Save'),
-                  ),
-                ],
+              TextButton.icon(
+                onPressed: _handleAddStep,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Step'),
               ),
             ],
           ),
-        ),
+
+          const SizedBox(height: 6),
+
+          // Step Items
+          if (widget.steps.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'No steps specified.',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ),
+            )
+          else
+            ReorderableListView(
+              shrinkWrap: true,
+              onReorder: (oldIndex, newIndex) {
+                setState(() {
+                  if (oldIndex < newIndex) {
+                    newIndex -= 1;
+                  }
+                  final step = widget.steps.removeAt(oldIndex);
+                  final completion = _stepCompleted.removeAt(oldIndex);
+                  widget.steps.insert(newIndex, step);
+                  _stepCompleted.insert(newIndex, completion);
+                });
+              },
+              children: List.generate(widget.steps.length, (index) {
+                return GestureDetector(
+                  key: Key('$index'), // Needed for reorder
+                  onLongPress: () => _showStepOptions(index),
+                  child: Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: _stepCompleted[index]
+                          ? Colors.green[100]
+                          : Colors.blue[50],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            _stepCompleted[index]
+                                ? Icons.check_box
+                                : Icons.check_box_outline_blank,
+                          ),
+                          onPressed: () => _toggleCompletion(index),
+                        ),
+                        Expanded(
+                          child: Text(
+                            widget.steps[index],
+                            style: TextStyle(
+                              fontSize: 16,
+                              decoration: _stepCompleted[index]
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                              color: _stepCompleted[index]
+                                  ? Colors.black54
+                                  : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+        ],
       ),
     );
   }
