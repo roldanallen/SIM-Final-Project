@@ -246,7 +246,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       User? firebaseUser = userCredential.user;
                       if (firebaseUser != null) {
                         UserModel newUser = UserModel(
-                          uid: userCredential.user!.uid,
                           email: firebaseUser.email!,
                           firstName: _firstNameController.text.trim(),
                           lastName: _lastNameController.text.trim(),

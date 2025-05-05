@@ -1,43 +1,55 @@
 class UserModel {
   final String uid;
-  final String username;
   final String email;
-  final String? firstName;
-  final String? lastName;
-  final String? dateOfBirth;
+  final String username;
+  final String firstName;
+  final String lastName;
+  final String? bio;
+  final String? gender;
   final String? country;
+  final String? phoneNumber;
+  final String? birthdate;
 
   UserModel({
     required this.uid,
-    required this.username,
     required this.email,
-    this.firstName,
-    this.lastName,
-    this.dateOfBirth,
+    required this.username,
+    required this.firstName,
+    required this.lastName,
+    this.bio,
+    this.gender,
     this.country,
+    this.phoneNumber,
+    this.birthdate,
   });
+
+  factory UserModel.fromMap(Map<String, dynamic> map) {
+    return UserModel(
+      uid: map['uid'] ?? '',
+      email: map['email'] ?? '',
+      username: map['username'] ?? '',
+      firstName: map['firstName'] ?? '',
+      lastName: map['lastName'] ?? '',
+      bio: map['bio'],
+      gender: map['gender'],
+      country: map['country'],
+      phoneNumber: map['phoneNumber'],
+      birthdate: map['birthdate'],
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
       'uid': uid,
-      'username': username,
       'email': email,
+      'username': username,
       'firstName': firstName,
       'lastName': lastName,
-      'dateOfBirth': dateOfBirth,
+      'bio': bio,
+      'gender': gender,
       'country': country,
+      'phoneNumber': phoneNumber,
+      'birthdate': birthdate,
     };
-  }
-
-  factory UserModel.fromMap(Map<String, dynamic> map) {
-    return UserModel(
-      uid: map['uid'],
-      username: map['username'],
-      email: map['email'],
-      firstName: map['firstName'],
-      lastName: map['lastName'],
-      dateOfBirth: map['dateOfBirth'],
-      country: map['country'],
-    );
   }
 }
