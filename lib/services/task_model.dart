@@ -8,6 +8,7 @@ class TaskModel {
   final String priority;
   final String status;
   final String description;
+  final String taskType;
 
   // Tool-specific attributes (nullable, depending on the tool type)
   final List<String>? steps;          // For To-Do
@@ -30,6 +31,7 @@ class TaskModel {
     required this.priority,
     required this.status,
     required this.description,
+    required this.taskType,
     this.steps,
     this.duration,
     this.category,
@@ -77,6 +79,7 @@ class TaskModel {
       priority: data['priority'],
       status: data['status'],
       description: data['description'],
+      taskType: data['taskType'],
       steps: List<String>.from(data['steps'] ?? []),
       duration: data['duration'],
       category: data['category'],

@@ -1,32 +1,63 @@
 import 'package:flutter/material.dart';
-import 'package:software_development/screens/models/task_model.dart';
 
-class TaskBar extends StatelessWidget {
-  final Task task;
-  const TaskBar({super.key, required this.task});
+class TaskButtonBar extends StatelessWidget {
+  final String taskTitle;
+  final String taskType;
+  final String taskPriority;
+  final VoidCallback onPressed;
+
+  const TaskButtonBar({
+    super.key,
+    required this.taskTitle,
+    required this.taskType,
+    required this.taskPriority,
+    required this.onPressed,
+  });
+
+  Color _getPriorityColor() {
+    switch (taskPriority.toLowerCase()) {
+      case 'low':
+        return Colors.green;
+      case 'medium':
+        return Colors.orange;
+      case 'high':
+        return Colors.red;
+      default:
+        return Colors.grey; // Default color
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: ElevatedButton(
-        onPressed: () {
-          // Will open task detail later
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.deepPurple.shade50,
-          foregroundColor: Colors.deepPurple,
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(12),
+        title: Text(
+          taskTitle,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        child: Row(
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.task_alt, color: Colors.deepPurple),
-            const SizedBox(width: 10),
-            Text(task.type, style: const TextStyle(fontSize: 16)),
+            Text(
+              taskType,
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Priority: $taskPriority',
+              style: TextStyle(
+                fontSize: 14,
+                color: _getPriorityColor(),
+              ),
+            ),
           ],
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.check_circle),
+          onPressed: onPressed,
         ),
       ),
     );

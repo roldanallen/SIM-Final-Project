@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:software_development/widgets/reusable_tools.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ToDoToolPage extends StatefulWidget {
   const ToDoToolPage({super.key});
@@ -18,7 +20,6 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
   String? _status;
 
   List<String> steps = [];
-  List<bool> stepCompleted = [];
 
   Future<void> _selectDate(bool isStart) async {
     final picked = await showDatePicker(
@@ -37,20 +38,12 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
   void _addStep(String step) {
     setState(() {
       steps.add(step);
-      stepCompleted.add(false);
     });
   }
 
   void _deleteStep(int index) {
     setState(() {
       steps.removeAt(index);
-      stepCompleted.removeAt(index);
-    });
-  }
-
-  void _toggleStep(int index) {
-    setState(() {
-      stepCompleted[index] = !stepCompleted[index];
     });
   }
 
@@ -64,27 +57,61 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
     setState(() {
       if (oldIndex < newIndex) newIndex--;
       final step = steps.removeAt(oldIndex);
-      final complete = stepCompleted.removeAt(oldIndex);
       steps.insert(newIndex, step);
-      stepCompleted.insert(newIndex, complete);
     });
   }
 
-  void _saveTask() {
-    print('--- To‑do Task Saved ---');
-    print('Title      : ${_titleController.text}');
-    print('Start Date : $_startDate');
-    print('End Date   : $_endDate');
-    print('Priority   : $_priority');
-    print('Status     : $_status');
-    print('Description: ${_descController.text}');
-    print('Steps      : $steps');
-    print('Completed  : $stepCompleted');
+  void _saveTask() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User not logged in')),
+      );
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('To‑do task saved!')),
-    );
+    final todoData = {
+      'taskType': 'todo', // Hardcoded task type
+      'title': _titleController.text.trim(),
+      'startDate': _startDate?.toIso8601String(),
+      'endDate': _endDate?.toIso8601String(),
+      'priority': _priority,
+      'status': _status ?? 'Not started',
+      'description': _descController.text.trim(),
+      'steps': steps,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('userData')
+          .doc(uid)
+          .collection('tools')
+          .doc('todo')
+          .collection('tasks')
+          .add(todoData);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('To‑do task saved to database!')),
+      );
+
+      setState(() {
+        _titleController.clear();
+        _descController.clear();
+        _startDate = null;
+        _endDate = null;
+        _priority = null;
+        _status = null;
+        steps.clear();
+      });
+    } catch (e) {
+      print('Error saving task: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save task')),
+      );
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -110,13 +137,10 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
             ),
             DescriptionField(controller: _descController),
 
-            // Updated StepList
             StepList(
               steps: steps,
-              completed: stepCompleted,
               onAddStep: _addStep,
               onDeleteStep: _deleteStep,
-              onToggleStep: _toggleStep,
               onEditStep: _editStep,
               onReorderSteps: _reorderSteps,
             ),
@@ -130,27 +154,21 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
   }
 }
 
-
 /// ------------------------------------------------------------------------
-/// To‑do‑specific widget: shows current steps (or "No steps specified") +
-/// an "Add Step" button that pops up an input dialog.
+/// Minimal note-like StepList (no toggles, just text-based steps)
 /// ------------------------------------------------------------------------
 class StepList extends StatelessWidget {
   final List<String> steps;
-  final List<bool> completed;
   final void Function(String) onAddStep;
   final void Function(int) onDeleteStep;
-  final void Function(int) onToggleStep;
   final void Function(int, String) onEditStep;
   final void Function(int, int) onReorderSteps;
 
   const StepList({
     super.key,
     required this.steps,
-    required this.completed,
     required this.onAddStep,
     required this.onDeleteStep,
-    required this.onToggleStep,
     required this.onEditStep,
     required this.onReorderSteps,
   });
@@ -194,14 +212,6 @@ class StepList extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               onDeleteStep(index);
-            },
-          ),
-          ListTile(
-            leading: Icon(completed[index] ? Icons.undo : Icons.check),
-            title: Text(completed[index] ? 'Mark as Undone' : 'Mark as Done'),
-            onTap: () {
-              Navigator.pop(context);
-              onToggleStep(index);
             },
           ),
         ],
@@ -268,42 +278,22 @@ class StepList extends StatelessWidget {
                   key: Key('$index'),
                   onLongPress: () => _showStepOptions(context, index),
                   child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
-                    padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 14),
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                     decoration: BoxDecoration(
-                      color: completed[index] ? Colors.green[100] : Colors.white,
-                      borderRadius: BorderRadius.circular(20), // more rounded
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withOpacity(0.08),
                           blurRadius: 6,
                           offset: const Offset(0, 3),
                         ),
                       ],
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min, // makes it shrink-wrap around contents
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            completed[index]
-                                ? Icons.check_box
-                                : Icons.check_box_outline_blank,
-                          ),
-                          onPressed: () => onToggleStep(index),
-                        ),
-                        Flexible(
-                          child: Text(
-                            steps[index],
-                            style: TextStyle(
-                              fontSize: 15,
-                              decoration:
-                              completed[index] ? TextDecoration.lineThrough : null,
-                              color: completed[index] ? Colors.black54 : Colors.black87,
-                            ),
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      steps[index],
+                      style: const TextStyle(fontSize: 15, color: Colors.black87),
                     ),
                   ),
                 );

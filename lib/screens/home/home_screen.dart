@@ -1,53 +1,34 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-import 'package:software_development/widgets/reusable_widget.dart';  // DeviceCard
 import 'package:software_development/widgets/task_window.dart';
-import 'package:software_development/widgets/task_bar.dart';
-import 'package:software_development/screens/models/task_model.dart';
 import 'package:software_development/widgets/task_schedule.dart';
-
 import 'package:software_development/widgets/profile_icon_settings.dart';
-import 'profile_screen.dart';
+import 'package:software_development/widgets/task_bar.dart'; // Import TaskButtonBar
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int visibleTaskCount = 10;
   File? _profileImage;
-
-  // Scroll controllers & flags
-  final _deviceScroll = ScrollController();
-  bool _devLeft = false, _devRight = false;
-
-  final _recScroll = ScrollController();
-  bool _recLeft = false, _recRight = false;
-
-  List<Map<String, dynamic>> devices = [];
-  int deviceCount = 0;
-
-  List<Map<String, dynamic>> tasks = [];    // starts empty
-  final recommendations = ['Ad 1', 'Ad 2', 'Ad 3'];
-
-  String userName = "Allen";
+  String userName = "";
+  final userId = FirebaseAuth.instance.currentUser?.uid;
+  TextEditingController _searchController = TextEditingController(); // Controller for the search bar
+  String searchQuery = ''; // Search query string
 
   @override
   void initState() {
     super.initState();
     _loadProfileImage();
-    _deviceScroll.addListener(_devListener);
-    _recScroll.addListener(_recListener);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        _devRight = _deviceScroll.position.maxScrollExtent > 0;
-        _recRight = _recScroll.position.maxScrollExtent > 0;
-      });
-    });
+    _fetchUserName();
   }
 
   Future<void> _loadProfileImage() async {
@@ -58,36 +39,86 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _devListener() {
-    setState(() {
-      _devLeft = _deviceScroll.offset > 0;
-      _devRight = _deviceScroll.offset < _deviceScroll.position.maxScrollExtent;
-    });
+  Future<void> _fetchUserName() async {
+    if (userId == null) return;
+    final userSnap = await FirebaseFirestore.instance
+        .collection('userData')
+        .doc(userId)
+        .get();
+    if (userSnap.exists) {
+      setState(() => userName = userSnap.data()?['username'] ?? '');
+    }
   }
 
-  void _recListener() {
-    setState(() {
-      _recLeft = _recScroll.offset > 0;
-      _recRight = _recScroll.offset < _recScroll.position.maxScrollExtent;
-    });
+  // Method to fetch all tasks dynamically from Firestore
+  Future<List<Map<String, dynamic>>> _fetchAllTasks() async {
+    if (userId == null) return [];
+
+    final List<Map<String, dynamic>> allTasks = [];
+
+    final userDocRef = FirebaseFirestore.instance
+        .collection('userData')
+        .doc(userId);
+
+    final userDocSnapshot = await userDocRef.get();
+    if (!userDocSnapshot.exists) return [];
+
+    final toolsSnapshot = await userDocRef.collection('tools').get();
+    if (toolsSnapshot.docs.isEmpty) return [];
+
+    for (final toolDoc in toolsSnapshot.docs) {
+      final toolId = toolDoc.id;
+
+      final tasksSnapshot = await userDocRef
+          .collection('tools')
+          .doc(toolId)
+          .collection('tasks')
+          .get();
+
+      for (final taskDoc in tasksSnapshot.docs) {
+        final data = taskDoc.data();
+        allTasks.add({
+          'taskType': toolId,
+          'title': data['title'] ?? '',
+          'priority': data['priority'] ?? 'Low',
+        });
+      }
+    }
+
+    return allTasks;
   }
 
-  @override
-  void dispose() {
-    _deviceScroll.dispose();
-    _recScroll.dispose();
-    super.dispose();
+  // Updated Search bar to filter tasks
+  Widget _buildSearchBar() {
+    return TextField(
+      controller: _searchController,
+      decoration: InputDecoration(
+        labelText: 'Search Tasks',
+        prefixIcon: const Icon(Icons.search),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      onChanged: (query) {
+        setState(() {
+          searchQuery = query; // Update search query as user types
+        });
+      },
+    );
   }
 
-  void _addTask(String taskType) {
-    setState(() {
-      tasks.add({
-        'time': DateTime.now().toString(),
-        'title': taskType,
-        'color': Colors.blue,
-        'members': ['A', 'B'],
-      });
-    });
+  // Method to convert priority text to an integer for sorting
+  int _priorityToInt(String priority) {
+    switch (priority.toLowerCase()) {
+      case 'low':
+        return 0;
+      case 'medium':
+        return 1;
+      case 'high':
+        return 2;
+      default:
+        return 0; // Default to 'low'
+    }
   }
 
   @override
@@ -100,7 +131,6 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── HEADER ──
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -111,173 +141,128 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  // Only this now: tappable avatar + bubble menu
                   ProfileIconSettings(
                     profileImage: _profileImage,
                     userName: userName,
                   ),
                 ],
               ),
-
-              // ── SEARCH ──
               const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(15),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 6,
-                            offset: Offset(0, 4),
-                            spreadRadius: 0,
-                          )
-                        ],
-                      ),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: "Search",
-                          prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 25),
-
               SizedBox(
-                height: MediaQuery.of(context).size.height * 0.45,  // Set calendar height to half of the screen
+                height: MediaQuery.of(context).size.height * 0.45,
                 child: TaskSchedule(),
               ),
+              const SizedBox(height: 10),
+              const Text(
+                "My Tasks",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 15),
+              _buildSearchBar(),
 
-              const SizedBox(height: 0),
-              // ── RECOMMENDED ──
-
-              // ── TASKS (now part of same scroll) ──
-              const Text("My Tasks",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
 
-              if (tasks.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 40),
-                    child: Text(
-                      "You don't have any tasks yet.",
-                      style:
-                      TextStyle(color: Colors.grey.shade600, fontSize: 16),
-                    ),
-                  ),
-                )
-              else
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: tasks.length,
-                  itemBuilder: (c, i) {
-                    final t = tasks[i];
-                    return _buildTaskTile(
-                      time: t['time'],
-                      title: t['title'],
-                      color: t['color'],
-                      members: t['members'],
-                    );
-                  },
-                ),
+              // Fetching and displaying tasks
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _fetchAllTasks(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-              const SizedBox(height: 80), // space for FAB
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+
+                  final tasks = snapshot.data ?? [];
+                  final filteredTasks = tasks
+                      .where((task) =>
+                      task['title'].toLowerCase().contains(searchQuery.toLowerCase()))
+                      .toList();
+
+                  // Sort tasks by priority
+                  filteredTasks.sort((a, b) {
+                    return _priorityToInt(b['priority']).compareTo(_priorityToInt(a['priority']));
+                  });
+
+                  if (filteredTasks.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 40),
+                        child: Text(
+                          "No tasks found.",
+                          style: TextStyle(
+                              color: Colors.grey.shade600, fontSize: 16),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Display a limited number of tasks
+                  final visibleTasks = filteredTasks.take(visibleTaskCount).toList();
+
+                  return Column(
+                    children: [
+                      // Wrapping the task list in a Scrollable Container
+                      Container(
+                        height: 400, // Set a fixed height for the scrollable area
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: visibleTasks.length,
+                          itemBuilder: (context, index) {
+                            final task = visibleTasks[index];
+                            final title = task['title'];
+                            final taskType = task['taskType'];
+                            final priority = task['priority'];
+
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: TaskButtonBar(
+                                taskTitle: title,
+                                taskType: taskType,
+                                taskPriority: priority,
+                                onPressed: () {
+                                  // Placeholder for opening task details screen
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      // Optional: Load more button to show more tasks
+                      if (visibleTasks.length < filteredTasks.length)
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              visibleTaskCount += 10; // Load more tasks
+                            });
+                          },
+                          child: const Text('Load More'),
+                        ),
+                    ],
+                  );
+                },
+              ),
             ],
           ),
         ),
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => TaskWindow(),
+          );
 
-      // bottom create-new FAB
-      floatingActionButton: tasks.isEmpty
-          ? FloatingActionButton.extended(
-        onPressed: () => showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (_) => TaskWindow(onAddTask: _addTask),
-        ),
-        label: const Text('Create Task'),
-        icon: const Icon(Icons.add),
-      )
-          : FloatingActionButton(
-        onPressed: () => showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (_) => TaskWindow(onAddTask: _addTask),
-        ),
+          if (result == true) {
+            setState(() {}); // Refresh after adding task
+          }
+        },
         child: const Icon(Icons.add),
       ),
-      floatingActionButtonLocation: tasks.isEmpty
-          ? FloatingActionButtonLocation.centerFloat
-          : FloatingActionButtonLocation.endFloat,
     );
   }
-
-  Widget _arrow(VoidCallback onTap, IconData icon) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Icon(icon, size: 20, color: Colors.grey.shade700),
-    ),
-  );
-
-  Widget _buildTaskTile({
-    required String time,
-    required String title,
-    required Color color,
-    required List<String> members,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Row(
-        children: [
-          Text(time, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Text(title,
-                style:
-                const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-          ),
-          Row(children: members.map((m) => _buildAvatar(m)).toList()),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatar(String label) => Padding(
-    padding: const EdgeInsets.only(left: 4),
-    child: CircleAvatar(
-      radius: 12,
-      backgroundColor: Colors.grey[300],
-      child: Text(label,
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-    ),
-  );
 }
