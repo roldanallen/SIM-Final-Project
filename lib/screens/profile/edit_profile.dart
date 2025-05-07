@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:country_picker/country_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({Key? key}) : super(key: key);
@@ -14,177 +16,238 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
 
-  final TextEditingController _firstNameController = TextEditingController(text: "Azalea");
-  final TextEditingController _lastNameController  = TextEditingController(text: "Smith");
-  final TextEditingController _usernameController  = TextEditingController(text: "azalea123");
-  final TextEditingController _emailController     = TextEditingController(text: "azalea@example.com");
-  final TextEditingController _dobController       = TextEditingController(text: "01-01-2000");
-  String? _selectedCountry = "USA";
-  String? _selectedGender = "Female";
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController  = TextEditingController();
+  final TextEditingController _usernameController  = TextEditingController();
+  final TextEditingController _emailController     = TextEditingController();
+  final TextEditingController _dobController       = TextEditingController();
+  final TextEditingController _phoneController     = TextEditingController();
+  final TextEditingController _bioController       = TextEditingController();
 
-  final TextEditingController _phoneController = TextEditingController(text: "+1234567890");
-  final TextEditingController _bioController   = TextEditingController(text: "Health enthusiast.");
+  String? _selectedCountry;
+  String? _selectedGender;
 
   bool _isUsernameValid = true;
+  bool _isChanged = false;
 
-  // Regex pattern to check username for at least one letter and one number
-  bool _validateUsername(String value) {
-    final regex = RegExp(r'^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{3,}$');
-    return regex.hasMatch(value);
+  void _onFieldChanged(String value, {String? field}) {
+    setState(() {
+      _isChanged = true;
+      if (field == 'username') {
+        _isUsernameValid = isValidUsername(value); // You can keep your validation function here
+      }
+      // Add similar checks for first name and last name if necessary
+    });
+  }
+
+  bool isRequiredField(String label) {
+    return label == 'First Name' ||
+        label == 'Last Name' ||
+        label == 'Username'; // Email is read-only and phone/bio are excluded
+  }
+
+  bool _areRequiredFieldsFilled() {
+    return _firstNameController.text.trim().isNotEmpty &&
+        _lastNameController.text.trim().isNotEmpty &&
+        _usernameController.text.trim().isNotEmpty;
+  }
+  bool isValidUsername(String username) {
+    final hasThreeLetters = RegExp(r'[a-zA-Z]').allMatches(username).length >= 3;
+    final hasNumber = RegExp(r'\d').hasMatch(username);
+    final noSymbols = RegExp(r'^[a-zA-Z0-9]+$').hasMatch(username);
+    return hasThreeLetters && hasNumber && noSymbols;
   }
 
   Future<void> _pickImage() async {
     final picked = await _picker.pickImage(source: ImageSource.gallery);
     if (picked != null) {
-      setState(() => _profileImage = File(picked.path));
+      setState(() {
+        _profileImage = File(picked.path);
+        _isChanged = true;
+      });
     }
   }
 
   Future<void> _pickDate() async {
+    DateTime initialDate = _dobController.text.isEmpty
+        ? DateTime.now() // Default to current date if no date is selected
+        : DateTime.parse(_dobController.text.split('-').reversed.join('-')); // Parse existing date
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(2000, 1, 1),
+      initialDate: initialDate,
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
     );
+
     if (picked != null) {
       setState(() {
         _dobController.text =
-        "${picked.day.toString().padLeft(2, '0')}-"
-            "${picked.month.toString().padLeft(2, '0')}-"
-            "${picked.year}";
+        "${picked.day.toString().padLeft(2, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.year}";
+        _isChanged = true;
+      });
+    }
+  }
+
+  Future<bool> _onWillPop() async {
+    if (_isChanged) {
+      return await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Discard changes?'),
+          content: const Text('You have unsaved changes. Do you really want to leave?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Leave')),
+          ],
+        ),
+      ) ?? false;
+    }
+    return true;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    fetchUserData(); // <- Fetch from Firebase
+  }
+
+  void fetchUserData() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('userData')
+        .doc(userId)
+        .get();
+
+    if (userDoc.exists) {
+      final data = userDoc.data()!;
+      setState(() {
+        _firstNameController.text = data['firstName'] ?? '';
+        _lastNameController.text = data['lastName'] ?? '';
+        _usernameController.text = data['username'] ?? '';
+        _emailController.text = data['email'] ?? '';
+        _dobController.text = data['birthdate'] ?? '';
+        _selectedCountry = data['country'] ?? '';
+        _selectedGender = data['gender'] ?? '';
+        _phoneController.text = data['phoneNumber'] ?? '';
+        _bioController.text = data['bio'] ?? '';
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F9FF),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Colors.black,
-        title: const Text('Edit Profile'),
-      ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Profile picture + edit button
-            Center(
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.blue, width: 2),
-                      color: Colors.grey.shade400,
-                      image: _profileImage != null
-                          ? DecorationImage(
-                        image: FileImage(_profileImage!),
-                        fit: BoxFit.cover,
-                      )
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF6F9FF),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          foregroundColor: Colors.black,
+          title: const Text('Edit Profile'),
+        ),
+        body: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Profile picture
+              Center(
+                child: Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    CircleAvatar(
+                      radius: 60,
+                      backgroundColor: Colors.grey.shade300,
+                      backgroundImage:
+                      _profileImage != null ? FileImage(_profileImage!) : null,
+                      child: _profileImage == null
+                          ? const Icon(Icons.person, size: 60, color: Colors.white)
                           : null,
                     ),
-                    child: _profileImage == null
-                        ? const Icon(Icons.person, size: 60, color: Colors.white)
-                        : null,
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: InkWell(
+                    InkWell(
                       onTap: _pickImage,
                       child: Container(
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.blue.shade100,
+                          color: Colors.white,
                         ),
                         padding: const EdgeInsets.all(6),
-                        child: const Icon(Icons.edit, size: 20, color: Colors.blue),
+                        child: const Icon(Icons.edit, color: Colors.blue),
                       ),
-                    ),
-                  ),
+                    )
+                  ],
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              Row(
+                children: [
+                  Expanded(child: _buildShadowField(_firstNameController, 'First Name', hintText: "Enter Name")),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildShadowField(_lastNameController, 'Last Name', hintText: "Enter Name")),
                 ],
               ),
-            ),
-
-            const SizedBox(height: 10),
-            // Name below profile picture
-            const Center(
-              child: Text(
-                'Azalea',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 30),
-
-            // First Name & Last Name
-            Row(
-              children: [
-                Expanded(
-                  child: _buildShadowField(_firstNameController, 'First Name'),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildShadowField(_lastNameController, 'Last Name'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Username with validation
-            _buildShadowField(_usernameController, 'Username', isUsername: true),
-            const SizedBox(height: 20),
-
-            // Email (read-only)
-            _buildShadowField(_emailController, 'Email Address', readOnly: true),
-            const SizedBox(height: 20),
-
-            // Date of Birth (full-width clickable bar)
-            _buildDatePicker(),
-            const SizedBox(height: 20),
-
-            // Country
-            _buildCountryPicker(),
-            const SizedBox(height: 30),
-
-            // Preferred Gender
-            _buildGenderPicker(),
-            const SizedBox(height: 20),
-
-            // Phone Number
-            _buildShadowField(_phoneController, 'Phone Number'),
-            const SizedBox(height: 20),
-
-            // Bio
-            _buildShadowField(_bioController, 'Bio'),
-            const SizedBox(height: 30),
-
-            // Save button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 20),
+              _buildShadowField(_usernameController, "Username", isUsername: true, hintText: "Enter username"),
+              const SizedBox(height: 20),
+              _buildShadowField(_emailController, 'Email Address', readOnly: true),
+              const SizedBox(height: 20),
+              _buildDatePicker(),
+              const SizedBox(height: 20),
+              _buildCountryPicker(),
+              const SizedBox(height: 20),
+              _buildGenderPicker(),
+              const SizedBox(height: 20),
+// Skip validation for phone and bio
+              _buildShadowField(_phoneController, 'Phone Number'),
+              const SizedBox(height: 20),
+              _buildShadowField(_bioController, 'Bio'),
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: (_isChanged && _isUsernameValid) ? Colors.green : Colors.grey, // Ensure button is only enabled if username is valid
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
+                  onPressed: (_isChanged && _isUsernameValid && _areRequiredFieldsFilled()) ? () async {
+                    final userId = FirebaseAuth.instance.currentUser?.uid;
+                    if (userId == null) return;
+
+                    // Prepare data to update
+                    final updatedData = {
+                      'firstName': _firstNameController.text.trim(),
+                      'lastName': _lastNameController.text.trim(),
+                      'username': _usernameController.text.trim(),
+                      'birthdate': _dobController.text.trim(),
+                      'country': _selectedCountry,
+                      'gender': _selectedGender,
+                      'phoneNumber': _phoneController.text.trim(),
+                      'bio': _bioController.text.trim(),
+                    };
+
+                    try {
+                      await FirebaseFirestore.instance.collection('userData').doc(userId).update(updatedData);
+                      // You can show a success message or navigate back after updating.
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Profile updated successfully')));
+                      Navigator.pop(context); // Go back after saving
+                    } catch (e) {
+                      // Handle errors if any
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error updating profile')));
+                    }
+                  } : null,
+                  child: const Text('Save', style: TextStyle(fontSize: 18, color: Colors.white)),
                 ),
-                onPressed: () {
-                  // TODO: implement save logic
-                },
-                child: const Text('Save', style: TextStyle(fontSize: 18)),
-              ),
-            ),
-          ],
+              )
+            ],
+          ),
         ),
       ),
     );
@@ -195,63 +258,91 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       String label, {
         bool readOnly = false,
         bool isUsername = false,
+        String? hintText,
+        IconData? icon,
       }) {
+    final isEmailField = readOnly;
+    final isRequired = isRequiredField(label);
+    final isUsernameField = isUsername;
+
+    final trimmedText = controller.text.trim();
+    final bool isEmpty = trimmedText.isEmpty;
+
+    // Error logic
+    final bool showRequiredError = isRequired && isEmpty;
+    final bool showUsernameFormatError = isUsernameField && !isEmpty && !_isUsernameValid;
+    final bool hasError = showRequiredError || showUsernameFormatError;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         Container(
-          width: double.infinity,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isEmailField ? Colors.grey[200] : Colors.white,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withOpacity(0.3),
-                spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 3),
               ),
             ],
+            border: hasError ? Border.all(color: Colors.red, width: 1.5) : null,
           ),
           child: TextField(
             controller: controller,
             readOnly: readOnly,
             style: const TextStyle(fontSize: 16),
             decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: const TextStyle(color: Colors.grey),
+              prefixIcon: icon != null ? Icon(icon, color: Colors.grey) : null,
               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               border: InputBorder.none,
-              errorText: isUsername && !_isUsernameValid
-                  ? "Username must contain at least one letter and one number"
-                  : null,
             ),
             onChanged: (value) {
-              if (isUsername) {
-                setState(() {
-                  _isUsernameValid = _validateUsername(value);
-                });
-              }
+              setState(() {
+                _isChanged = true;
+                if (isUsernameField) {
+                  _isUsernameValid = isValidUsername(value);
+                }
+              });
             },
           ),
         ),
+        if (showRequiredError)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              "This field is required",
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          )
+        else if (showUsernameFormatError)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text(
+              "Must contain at least three (3) letters and one (1) number",
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ),
       ],
     );
   }
+
 
   Widget _buildDatePicker() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Date of Birth',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+        const Text('Date of Birth', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         GestureDetector(
           onTap: _pickDate,
           child: Container(
-            width: double.infinity,
+            width: double.infinity, // Use double.infinity to make the container stretch
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -259,7 +350,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.3),
-                  spreadRadius: 1,
                   blurRadius: 6,
                   offset: const Offset(0, 3),
                 ),
@@ -282,25 +372,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Country',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+        const Text('Country', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         GestureDetector(
           onTap: () {
             showCountryPicker(
               context: context,
               showPhoneCode: false,
-              onSelect: (Country country) {
+              onSelect: (country) {
                 setState(() {
                   _selectedCountry = country.name;
+                  _isChanged = true;
                 });
               },
             );
           },
           child: Container(
-            width: double.infinity,
+            width: double.infinity, // Use double.infinity to make the container stretch
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -308,7 +396,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.3),
-                  spreadRadius: 1,
                   blurRadius: 6,
                   offset: const Offset(0, 3),
                 ),
@@ -331,10 +418,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Preferred Gender',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
+        const Text('Preferred Gender', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -344,7 +428,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             boxShadow: [
               BoxShadow(
                 color: Colors.grey.withOpacity(0.3),
-                spreadRadius: 1,
                 blurRadius: 6,
                 offset: const Offset(0, 3),
               ),
@@ -352,7 +435,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
           child: DropdownButton<String>(
             value: _selectedGender,
-            hint: const Text("Select Gender"),
             isExpanded: true,
             underline: const SizedBox(),
             items: const [
@@ -362,7 +444,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               DropdownMenuItem(value: 'Prefer not to say', child: Text('Prefer not to say')),
             ],
             onChanged: (value) {
-              setState(() => _selectedGender = value);
+              setState(() {
+                _selectedGender = value;
+                _isChanged = true;
+              });
             },
           ),
         ),

@@ -51,7 +51,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.apps), label: 'Tools'),
-          BottomNavigationBarItem(icon: Icon(Icons.web), label: 'Browse'),
+          BottomNavigationBarItem(icon: Icon(Icons.stacked_line_chart), label: 'Activity'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),

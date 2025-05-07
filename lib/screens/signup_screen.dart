@@ -4,6 +4,7 @@ import 'home/home_screen.dart';
 import 'package:software_development/widgets/reusable_widget.dart';
 import 'package:software_development/services/firestore_service.dart';
 import 'package:software_development/services/user_model.dart';
+import 'package:software_development/widgets/error_handler.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({Key? key}) : super(key: key);
@@ -17,18 +18,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _passwordTextController = TextEditingController();
   final TextEditingController _confirmPasswordTextController = TextEditingController();
   final TextEditingController _userNameTextController = TextEditingController();
-  final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _birthdateController = TextEditingController();
-  final TextEditingController _countryController = TextEditingController();
-  final TextEditingController _phoneNumberController = TextEditingController();
-  final TextEditingController _genderController = TextEditingController();
 
-  String _emailError = '';
-  String _passwordError = '';
-  String _confirmPasswordError = '';
-  String _usernameError = '';
-  String _genericError = '';
+  String? _emailError;
+  String? _passwordError;
+  String? _confirmPasswordError;
+  String? _usernameError;
+  String? _genericError;
 
   bool isValidPassword(String password) {
     final passwordRegExp = RegExp(r'^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{7,}$');
@@ -65,9 +60,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         height: MediaQuery.of(context).size.height,
         decoration: BoxDecoration(
           gradient: LinearGradient(colors: [
-            hexStringToColor("CB2B93"),
-            hexStringToColor("9546C4"),
-            hexStringToColor("5E61F4")
+            Colors.pink,
+            Colors.purple,
+            Colors.blue
           ], begin: Alignment.topCenter, end: Alignment.bottomCenter),
         ),
         child: SingleChildScrollView(
@@ -76,19 +71,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
             child: Column(
               children: <Widget>[
                 const SizedBox(height: 20),
-
                 // Username Field
                 TextField(
                   controller: _userNameTextController,
                   onChanged: (_) {
                     setState(() {
-                      if (_userNameTextController.text.isEmpty) {
-                        _usernameError = 'This field is required.';
-                      } else if (!isValidUsername(_userNameTextController.text)) {
-                        _usernameError = 'Username should have at least 3 letters and be followed by a number.';
-                      } else {
-                        _usernameError = '';
-                      }
+                      _usernameError = ErrorHandler.handleFieldError(
+                        value: _userNameTextController.text,
+                        fieldType: 'username',
+                        regExp: RegExp(r'^[A-Za-z]{3,}\d+$'),
+                        emptyError: 'This field is required.',
+                        invalidError: 'Username should have at least 3 letters and be followed by a number.',
+                      );
                     });
                   },
                   style: const TextStyle(color: Colors.white),
@@ -101,14 +95,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30.0),
                       borderSide: BorderSide(
-                        color: _usernameError.isNotEmpty ? Colors.red : Colors.transparent,
+                        color: _usernameError != null ? Colors.red : Colors.transparent,
                         width: 2,
                       ),
                     ),
                   ),
                 ),
-                if (_usernameError.isNotEmpty)
-                  Text(_usernameError, style: const TextStyle(color: Colors.red)),
+                ErrorHandler.displayError(_usernameError),
 
                 const SizedBox(height: 20),
 
@@ -117,13 +110,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   controller: _emailTextController,
                   onChanged: (_) {
                     setState(() {
-                      if (_emailTextController.text.isEmpty) {
-                        _emailError = 'This field is required.';
-                      } else if (!isValidEmail(_emailTextController.text)) {
-                        _emailError = 'Invalid email format.';
-                      } else {
-                        _emailError = '';
-                      }
+                      _emailError = ErrorHandler.handleFieldError(
+                        value: _emailTextController.text,
+                        fieldType: 'email',
+                        regExp: RegExp(r'^[a-zA-Z0-9]+@[a-zA-Z0-9]+\.[a-zA-Z]{2,}$'),
+                        emptyError: 'This field is required.',
+                        invalidError: 'Invalid email format.',
+                      );
                     });
                   },
                   style: const TextStyle(color: Colors.white),
@@ -136,14 +129,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30.0),
                       borderSide: BorderSide(
-                        color: _emailError.isNotEmpty ? Colors.red : Colors.transparent,
+                        color: _emailError != null ? Colors.red : Colors.transparent,
                         width: 2,
                       ),
                     ),
                   ),
                 ),
-                if (_emailError.isNotEmpty)
-                  Text(_emailError, style: const TextStyle(color: Colors.red)),
+                ErrorHandler.displayError(_emailError),
 
                 const SizedBox(height: 20),
 
@@ -153,13 +145,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   obscureText: true,
                   onChanged: (_) {
                     setState(() {
-                      if (_passwordTextController.text.isEmpty) {
-                        _passwordError = 'This field is required.';
-                      } else if (!isValidPassword(_passwordTextController.text)) {
-                        _passwordError = 'Password must contain at least 1 symbol, 1 capital letter, 1 number, and at least 8 characters.';
-                      } else {
-                        _passwordError = '';
-                      }
+                      _passwordError = ErrorHandler.handleFieldError(
+                        value: _passwordTextController.text,
+                        fieldType: 'password',
+                        regExp: RegExp(r'^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{7,}$'),
+                        emptyError: 'This field is required.',
+                        invalidError: 'Password must contain at least 1 symbol, 1 capital letter, 1 number, and at least 8 characters.',
+                      );
                     });
                   },
                   style: const TextStyle(color: Colors.white),
@@ -172,14 +164,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30.0),
                       borderSide: BorderSide(
-                        color: _passwordError.isNotEmpty ? Colors.red : Colors.transparent,
+                        color: _passwordError != null ? Colors.red : Colors.transparent,
                         width: 2,
                       ),
                     ),
                   ),
                 ),
-                if (_passwordError.isNotEmpty)
-                  Text(_passwordError, style: const TextStyle(color: Colors.red)),
+                ErrorHandler.displayError(_passwordError),
 
                 const SizedBox(height: 20),
 
@@ -189,12 +180,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   obscureText: true,
                   onChanged: (_) {
                     setState(() {
-                      if (_confirmPasswordTextController.text.isEmpty) {
-                        _confirmPasswordError = 'This field is required.';
-                      } else if (_confirmPasswordTextController.text != _passwordTextController.text) {
+                      if (_confirmPasswordTextController.text != _passwordTextController.text) {
                         _confirmPasswordError = 'Password did not match.';
                       } else {
-                        _confirmPasswordError = '';
+                        _confirmPasswordError = null;
                       }
                     });
                   },
@@ -208,14 +197,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(30.0),
                       borderSide: BorderSide(
-                        color: _confirmPasswordError.isNotEmpty ? Colors.red : Colors.transparent,
+                        color: _confirmPasswordError != null ? Colors.red : Colors.transparent,
                         width: 2,
                       ),
                     ),
                   ),
                 ),
-                if (_confirmPasswordError.isNotEmpty)
-                  Text(_confirmPasswordError, style: const TextStyle(color: Colors.red)),
+                ErrorHandler.displayError(_confirmPasswordError),
 
                 const SizedBox(height: 20),
 
@@ -230,10 +218,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                   onPressed: () async {
                     setState(() {
-                      _emailError = '';
-                      _usernameError = '';
-                      _passwordError = '';
-                      _confirmPasswordError = '';
                       _genericError = '';
                     });
 
@@ -245,18 +229,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                       User? firebaseUser = userCredential.user;
                       if (firebaseUser != null) {
-                        UserModel newUser = UserModel(
-                          uid: userCredential.user!.uid,
-                          email: firebaseUser.email!,
-                          firstName: _firstNameController.text.trim(),
-                          lastName: _lastNameController.text.trim(),
-                          birthdate: _birthdateController.text.trim(),
-                          country: _countryController.text.trim(),
-                          gender: _genderController.text.trim(),
-                          phoneNumber: _phoneNumberController.text.trim(),
-                          username: _userNameTextController.text.trim(),
-                        );
-                        await FirestoreService().createUser(newUser);
+                        // Add user to Firestore
                       }
 
                       _showSnackbar('Successfully created an account');
@@ -274,22 +247,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           _genericError = 'Error: ${e.message}';
                         });
                       }
-                    } catch (e) {
-                      setState(() {
-                        _genericError = 'Error saving user data: $e';
-                      });
                     }
                   },
-                  child: const Text(
-                    "Sign Up",
-                    style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  child: const Text("Sign Up", style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
 
-                if (_genericError.isNotEmpty)
+                if (_genericError != null && _genericError!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text(_genericError, style: const TextStyle(color: Colors.red)),
+                    child: Text(_genericError!, style: const TextStyle(color: Colors.red)),
                   ),
               ],
             ),

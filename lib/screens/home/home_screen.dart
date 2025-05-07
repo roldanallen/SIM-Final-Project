@@ -46,7 +46,9 @@ class _HomeScreenState extends State<HomeScreen> {
         .doc(userId)
         .get();
     if (userSnap.exists) {
-      setState(() => userName = userSnap.data()?['username'] ?? '');
+      final data = userSnap.data();
+      final firstName = data?['firstName'] ?? '';
+      setState(() => userName = firstName);
     }
   }
 
@@ -137,7 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     "Hi $userName",
                     style: const TextStyle(
-                      fontSize: 26,
+                      fontSize: 32,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -160,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 15),
               _buildSearchBar(),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 15),
 
               // Fetching and displaying tasks
               FutureBuilder<List<Map<String, dynamic>>>(
