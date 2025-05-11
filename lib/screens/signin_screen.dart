@@ -4,6 +4,7 @@ import 'package:software_development/screens/home/home_screen.dart';
 import 'signup_screen.dart';
 import 'package:software_development/widgets/reusable_widget.dart';
 import 'package:software_development/screens/main_navigation.dart';
+import 'package:software_development/screens/forgot_password_1.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({Key? key}) : super(key: key);
@@ -27,7 +28,7 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() {
       emailError = _emailTextController.text.isEmpty ? 'Please enter email' : null;
       passwordError = _passwordTextController.text.isEmpty ? 'Please enter password' : null;
-      authError = null; // Clear previous auth error
+      authError = null;
     });
 
     if (emailError != null || passwordError != null) return;
@@ -40,7 +41,6 @@ class _SignInScreenState extends State<SignInScreen> {
         password: _passwordTextController.text.trim(),
       );
 
-      // Successful login
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Successfully signed in."),
@@ -114,10 +114,34 @@ class _SignInScreenState extends State<SignInScreen> {
                 _passwordTextController,
                 errorText: passwordError,
               ),
+
+              // Forgot Password Button
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
+                    );
+                  },
+                  child: const Text(
+                    'Forgot Password?',
+                    style: TextStyle(
+                      color: Colors.blueAccent,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Auth error message
               if (authError != null) ...[
                 SizedBox(height: 10),
                 Text(authError!, style: TextStyle(color: Colors.redAccent)),
               ],
+
               inputDecorationSpacing,
               signInSignUpButton(context, true, signInUser),
               signUpOption()
@@ -127,6 +151,7 @@ class _SignInScreenState extends State<SignInScreen> {
       ),
     );
   }
+
 
   Row signUpOption() {
     return Row(

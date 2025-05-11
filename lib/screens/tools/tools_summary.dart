@@ -3,24 +3,28 @@ import 'package:flutter/material.dart';
 class MySummary extends StatelessWidget {
   final String selectedTool;
   final Map<String, Map<String, String>> summaryStats;
+  final List<String> toolOptions;
   final ValueChanged<String> onToolChanged;
 
   const MySummary({
     super.key,
     required this.selectedTool,
     required this.summaryStats,
+    required this.toolOptions,
     required this.onToolChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final toolOptions = ['All', ...summaryStats.keys];
-    final isAll = selectedTool == 'All';
+    print('MySummary - selectedTool: $selectedTool, toolOptions: $toolOptions'); // Debug log
+
+    // Fallback if selectedTool is not in toolOptions
+    final validSelectedTool = toolOptions.contains(selectedTool) ? selectedTool : toolOptions[0];
 
     // Compute aggregate values if 'All' is selected
-    final Map<String, String> displayStats = isAll
+    final Map<String, String> displayStats = validSelectedTool == 'All'
         ? _computeTotalStats(summaryStats)
-        : summaryStats[selectedTool]!;
+        : summaryStats[validSelectedTool] ?? summaryStats['All']!;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -30,17 +34,16 @@ class MySummary extends StatelessWidget {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-
-        // ----- Dropdown with outline -----
+        // Dropdown with outline, half width
         Container(
+          width: MediaQuery.of(context).size.width * 0.5, // Half screen width
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade400, width: 1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: DropdownButton<String>(
-            value: selectedTool,
-            //isExpanded: true,
+            value: validSelectedTool,
             underline: const SizedBox.shrink(),
             onChanged: (value) {
               if (value != null) onToolChanged(value);
@@ -53,16 +56,14 @@ class MySummary extends StatelessWidget {
             }).toList(),
           ),
         ),
-
         const SizedBox(height: 16),
-
         GridView.count(
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.5, // Adjust box size here
+          childAspectRatio: 1.5,
           children: _universalLabels.map((label) {
             final value = displayStats[label] ?? '0';
             return _StatCard(label: label, value: value);
@@ -84,9 +85,10 @@ class MySummary extends StatelessWidget {
       for (var label in _universalLabels) label: 0,
     };
 
-    for (var toolStats in stats.values) {
+    // Exclude 'All' to avoid double-counting
+    for (var entry in stats.entries.where((entry) => entry.key != 'All')) {
       for (var label in _universalLabels) {
-        final value = int.tryParse(toolStats[label] ?? '0') ?? 0;
+        final value = int.tryParse(entry.value[label] ?? '0') ?? 0;
         totals[label] = (totals[label] ?? 0) + value;
       }
     }

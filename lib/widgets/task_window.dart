@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:software_development/screens/tools/todo_tool.dart';
-import 'package:software_development/screens/tools/workout_tool.dart';
-import 'package:software_development/screens/tools/diet_tool.dart';
+import 'package:software_development/screens/tools/todo_tools/todo_tool.dart';
+import 'package:software_development/screens/tools/workout_tools/workout_tool.dart';
+import 'package:software_development/screens/tools/diet_tools/diet_tool.dart';
+import 'package:software_development/screens/tools/todo_tools/todo_selection.dart';
 
 class TaskWindow extends StatelessWidget {
   const TaskWindow({super.key});
@@ -86,7 +87,7 @@ class TaskWindow extends StatelessWidget {
         Widget targetPage;
         switch (taskType) {
           case 'to_do':
-            targetPage = const ToDoToolPage();
+            targetPage = const ToDoTypeSelectionScreen();
             break;
           case 'workout':
             targetPage = const WorkoutToolPage();

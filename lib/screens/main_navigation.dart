@@ -24,7 +24,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _pages = [
     const HomeScreen(key: ValueKey('home')),
     const ToolsScreen(key: ValueKey('tools')),
-    const ActivityPage(key: ValueKey('activity')), // or BrowseScreen if needed
+    const ActivityPage(key: ValueKey('activity')),
+    const ActivityPage(key: ValueKey('browse')),
     const ProfileScreen(key: ValueKey('profile')),
   ];
 
@@ -52,6 +53,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.apps), label: 'Tools'),
           BottomNavigationBarItem(icon: Icon(Icons.stacked_line_chart), label: 'Activity'),
+          BottomNavigationBarItem(icon: Icon(Icons.interests), label: 'Browse'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),

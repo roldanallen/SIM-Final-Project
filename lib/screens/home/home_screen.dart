@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
 
 import 'package:software_development/widgets/task_window.dart';
 import 'package:software_development/widgets/task_schedule.dart';
 import 'package:software_development/widgets/profile_icon_settings.dart';
-import 'package:software_development/widgets/task_bar.dart'; // Import TaskButtonBar
+import 'package:software_development/widgets/task_bar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,14 +22,25 @@ class _HomeScreenState extends State<HomeScreen> {
   File? _profileImage;
   String userName = "";
   final userId = FirebaseAuth.instance.currentUser?.uid;
-  TextEditingController _searchController = TextEditingController(); // Controller for the search bar
-  String searchQuery = ''; // Search query string
+  TextEditingController _searchController = TextEditingController();
+  String searchQuery = '';
+  List<Map<String, dynamic>> _cachedTasks = [];
+  bool isLoading = true;
+  String? error;
 
   @override
   void initState() {
     super.initState();
     _loadProfileImage();
     _fetchUserName();
+    _enableFirestoreOffline();
+    _fetchTasks();
+  }
+
+  Future<void> _enableFirestoreOffline() async {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+    );
   }
 
   Future<void> _loadProfileImage() async {
@@ -45,14 +57,51 @@ class _HomeScreenState extends State<HomeScreen> {
         .collection('userData')
         .doc(userId)
         .get();
-    if (userSnap.exists) {
+    if (userSnap.exists && mounted) {
       final data = userSnap.data();
       final firstName = data?['firstName'] ?? '';
       setState(() => userName = firstName);
     }
   }
 
-  // Method to fetch all tasks dynamically from Firestore
+  Future<void> _fetchTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedTasksJson = prefs.getString('cached_tasks');
+    if (cachedTasksJson != null && mounted) {
+      final tasks = List<Map<String, dynamic>>.from(jsonDecode(cachedTasksJson));
+      setState(() {
+        _cachedTasks = tasks;
+        isLoading = false;
+      });
+    }
+
+    if (userId == null) {
+      setState(() {
+        error = 'Please sign in';
+        isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final tasks = await _fetchAllTasks();
+      await prefs.setString('cached_tasks', jsonEncode(tasks));
+      if (mounted) {
+        setState(() {
+          _cachedTasks = tasks;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          error = 'Error loading tasks';
+          isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<List<Map<String, dynamic>>> _fetchAllTasks() async {
     if (userId == null) return [];
 
@@ -90,26 +139,36 @@ class _HomeScreenState extends State<HomeScreen> {
     return allTasks;
   }
 
-  // Updated Search bar to filter tasks
   Widget _buildSearchBar() {
-    return TextField(
-      controller: _searchController,
-      decoration: InputDecoration(
-        labelText: 'Search Tasks',
-        prefixIcon: const Icon(Icons.search),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 4,
+            offset: Offset(0, 4),
+          ),
+        ],
       ),
-      onChanged: (query) {
-        setState(() {
-          searchQuery = query; // Update search query as user types
-        });
-      },
+      child: TextField(
+        controller: _searchController,
+        decoration: const InputDecoration(
+          hintText: 'Search Tasks',
+          prefixIcon: Icon(Icons.search),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        ),
+        onChanged: (query) {
+          setState(() {
+            searchQuery = query;
+          });
+        },
+      ),
     );
   }
 
-  // Method to convert priority text to an integer for sorting
   int _priorityToInt(String priority) {
     switch (priority.toLowerCase()) {
       case 'low':
@@ -119,17 +178,42 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'high':
         return 2;
       default:
-        return 0; // Default to 'low'
+        return 0;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    if (error != null) {
+      return Scaffold(
+        body: Center(child: Text(error!)),
+      );
+    }
+
+    if (isLoading && _cachedTasks.isEmpty) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final filteredTasks = _cachedTasks
+        .where((task) =>
+        task['title'].toLowerCase().contains(searchQuery.toLowerCase()))
+        .toList();
+
+    filteredTasks.sort((a, b) =>
+        _priorityToInt(b['priority']).compareTo(_priorityToInt(a['priority'])));
+
+    final visibleTasks = filteredTasks.take(visibleTaskCount).toList();
+
     return Scaffold(
       backgroundColor: const Color(0xF0F6F9FF),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(screenWidth * 0.05),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -138,8 +222,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     "Hi $userName",
-                    style: const TextStyle(
-                      fontSize: 32,
+                    style: TextStyle(
+                      fontSize: screenWidth * 0.08,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -149,103 +233,78 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: screenHeight * 0.03),
               SizedBox(
-                height: MediaQuery.of(context).size.height * 0.45,
+                height: screenHeight * 0.45,
                 child: TaskSchedule(),
               ),
-              const SizedBox(height: 10),
-              const Text(
+              SizedBox(height: screenHeight * 0.02),
+              Text(
                 "My Tasks",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: screenWidth * 0.045,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              const SizedBox(height: 15),
+              SizedBox(height: screenHeight * 0.02),
               _buildSearchBar(),
+              SizedBox(height: screenHeight * 0.02),
+              if (filteredTasks.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: screenHeight * 0.05),
+                    child: Text(
+                      "No tasks found.",
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: screenWidth * 0.04,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Column(
+                  children: [
+                    Container(
+                      height: screenHeight * 0.4,
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: visibleTasks.length,
+                        itemBuilder: (context, index) {
+                          final task = visibleTasks[index];
+                          final title = task['title'];
+                          final taskType = task['taskType'];
+                          final priority = task['priority'];
 
-              const SizedBox(height: 15),
-
-              // Fetching and displaying tasks
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: _fetchAllTasks(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  }
-
-                  final tasks = snapshot.data ?? [];
-                  final filteredTasks = tasks
-                      .where((task) =>
-                      task['title'].toLowerCase().contains(searchQuery.toLowerCase()))
-                      .toList();
-
-                  // Sort tasks by priority
-                  filteredTasks.sort((a, b) {
-                    return _priorityToInt(b['priority']).compareTo(_priorityToInt(a['priority']));
-                  });
-
-                  if (filteredTasks.isEmpty) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 40),
+                          return Padding(
+                            padding:
+                            EdgeInsets.symmetric(vertical: screenHeight * 0.005),
+                            child: TaskButtonBar(
+                              taskTitle: title,
+                              taskType: taskType,
+                              taskPriority: priority,
+                              onPressed: () {
+                                // Placeholder for opening task details screen
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    if (visibleTasks.length < filteredTasks.length)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            visibleTaskCount += 10;
+                          });
+                        },
                         child: Text(
-                          "No tasks found.",
-                          style: TextStyle(
-                              color: Colors.grey.shade600, fontSize: 16),
+                          'Load More',
+                          style: TextStyle(fontSize: screenWidth * 0.04),
                         ),
                       ),
-                    );
-                  }
-
-                  // Display a limited number of tasks
-                  final visibleTasks = filteredTasks.take(visibleTaskCount).toList();
-
-                  return Column(
-                    children: [
-                      // Wrapping the task list in a Scrollable Container
-                      Container(
-                        height: 400, // Set a fixed height for the scrollable area
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: visibleTasks.length,
-                          itemBuilder: (context, index) {
-                            final task = visibleTasks[index];
-                            final title = task['title'];
-                            final taskType = task['taskType'];
-                            final priority = task['priority'];
-
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: TaskButtonBar(
-                                taskTitle: title,
-                                taskType: taskType,
-                                taskPriority: priority,
-                                onPressed: () {
-                                  // Placeholder for opening task details screen
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-
-                      // Optional: Load more button to show more tasks
-                      if (visibleTasks.length < filteredTasks.length)
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              visibleTaskCount += 10; // Load more tasks
-                            });
-                          },
-                          child: const Text('Load More'),
-                        ),
-                    ],
-                  );
-                },
-              ),
+                  ],
+                ),
             ],
           ),
         ),
@@ -260,7 +319,11 @@ class _HomeScreenState extends State<HomeScreen> {
           );
 
           if (result == true) {
-            setState(() {}); // Refresh after adding task
+            setState(() {
+              isLoading = true;
+              _cachedTasks = []; // Clear cache to force refetch
+            });
+            _fetchTasks(); // Refetch tasks after adding a new one
           }
         },
         child: const Icon(Icons.add),
