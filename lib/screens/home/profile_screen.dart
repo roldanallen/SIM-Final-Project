@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:software_development/screens/profile/edit_profile.dart';
 import 'package:software_development/screens/profile/change_password.dart';
 
@@ -19,12 +21,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _firstName = '';
   String _lastName = '';
   String _username = '';
+  bool _isOnline = true;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
     _loadProfileImage();
-    _fetchUserData();
+    _loadCachedUserData();
+    _initConnectivity();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadProfileImage() async {
@@ -45,19 +56,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _loadCachedUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _firstName = prefs.getString('firstName') ?? '';
+      _lastName = prefs.getString('lastName') ?? '';
+      _username = prefs.getString('username') ?? '';
+    });
+  }
+
   Future<void> _fetchUserData() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final doc = await FirebaseFirestore.instance.collection('userData').doc(uid).get();
-    if (doc.exists) {
-      final data = doc.data()!;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('userData').doc(uid).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        final prefs = await SharedPreferences.getInstance();
+        setState(() {
+          _firstName = data['firstName'] ?? '';
+          _lastName = data['lastName'] ?? '';
+          _username = data['username'] ?? '';
+        });
+        await prefs.setString('firstName', _firstName);
+        await prefs.setString('lastName', _lastName);
+        await prefs.setString('username', _username);
+      }
+    } catch (e) {
+      print('Error fetching user data: $e');
+    }
+  }
+
+  Future<void> _initConnectivity() async {
+    // Initial connectivity check
+    final connectivityResults = await Connectivity().checkConnectivity();
+    if (mounted) {
       setState(() {
-        _firstName = data['firstName'] ?? '';
-        _lastName = data['lastName'] ?? '';
-        _username = data['username'] ?? '';
+        _isOnline = connectivityResults.any((result) =>
+        result == ConnectivityResult.wifi || result == ConnectivityResult.mobile);
       });
     }
+
+    // Fetch data if online
+    if (_isOnline) {
+      await _fetchUserData();
+    }
+
+    // Listen for connectivity changes
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
+      if (mounted) {
+        setState(() {
+          _isOnline = results.any((result) =>
+          result == ConnectivityResult.wifi || result == ConnectivityResult.mobile);
+        });
+      }
+    });
   }
 
   @override
@@ -97,7 +151,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       bottom: 0,
                       right: 0,
                       child: InkWell(
-                        onTap: _pickImage,
+                        onTap: _isOnline
+                            ? _pickImage
+                            : () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("There's no internet connection")),
+                          );
+                        },
                         child: Container(
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
@@ -142,6 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Edit Profile',
                 description: 'Update your personal information',
                 icon: Icons.edit,
+                isEnabled: _isOnline,
                 onTap: () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen()));
                 },
@@ -150,6 +211,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Change Password',
                 description: 'Secure your account with a new password',
                 icon: Icons.lock,
+                isEnabled: _isOnline,
                 onTap: () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen()));
                 },
@@ -169,12 +231,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Allow Notifications',
                 description: 'Receive alerts for updates and messages',
                 icon: Icons.notifications,
+                isEnabled: true,
                 onTap: () {},
               ),
               _buildButton(
                 title: 'Notification Preferences',
                 description: 'Customize your notification settings',
                 icon: Icons.tune,
+                isEnabled: true,
                 onTap: () {},
               ),
               // Preferences Section
@@ -192,18 +256,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Dark Mode',
                 description: 'Switch to a darker theme for better viewing',
                 icon: Icons.dark_mode,
+                isEnabled: true,
                 onTap: () {},
               ),
               _buildButton(
                 title: 'Language',
                 description: 'Choose your preferred app language',
                 icon: Icons.language,
+                isEnabled: true,
                 onTap: () {},
               ),
               _buildButton(
                 title: 'Accessibility',
                 description: 'Adjust app settings for better usability',
                 icon: Icons.accessibility,
+                isEnabled: true,
                 onTap: () {},
               ),
               // Premium
@@ -211,6 +278,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: 'Premium',
                 description: 'Unlock exclusive features with a subscription',
                 icon: Icons.star,
+                isEnabled: true,
                 onTap: () {},
               ),
               // Account Deletion
@@ -220,6 +288,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 icon: Icons.delete,
                 textColor: Colors.red,
                 iconColor: Colors.red,
+                isEnabled: true,
                 onTap: () {},
               ),
               const SizedBox(height: 20),
@@ -235,6 +304,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String description,
     required IconData icon,
     required VoidCallback onTap,
+    bool isEnabled = true,
     Color textColor = Colors.black,
     Color iconColor = Colors.black,
   }) {
@@ -248,7 +318,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
           elevation: 0,
         ),
-        onPressed: onTap,
+        onPressed: isEnabled
+            ? onTap
+            : () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("There's no internet connection")),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20.0),
           child: Row(
@@ -260,23 +336,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(icon, size: 24, color: iconColor),
+                        Icon(
+                          icon,
+                          size: 24,
+                          color: isEnabled ? iconColor : Colors.grey,
+                        ),
                         const SizedBox(width: 12),
                         Text(
                           title,
-                          style: TextStyle(fontSize: 16, color: textColor),
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: isEnabled ? textColor : Colors.grey,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(
                       description,
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isEnabled ? Colors.grey : Colors.grey.shade400,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black),
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: isEnabled ? Colors.black : Colors.grey,
+              ),
             ],
           ),
         ),

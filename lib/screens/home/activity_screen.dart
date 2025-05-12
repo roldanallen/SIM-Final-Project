@@ -156,8 +156,11 @@ class _ActivityPageState extends State<ActivityPage> {
         continue;
       }
 
-      taskCounts[displayName] = tasks.length;
-      displayToolTypes.add(displayName);
+      // Only include tools with tasks
+      if (tasks.isNotEmpty) {
+        taskCounts[displayName] = tasks.length;
+        displayToolTypes.add(displayName);
+      }
 
       summaryStats[displayName] = {
         'created': 0,
@@ -169,36 +172,60 @@ class _ActivityPageState extends State<ActivityPage> {
       for (var doc in tasks) {
         final data = doc.data() as Map<String, dynamic>;
         final status = data['status'] as String? ?? 'created';
-        final createdAt = (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+        DateTime createdAt;
 
-        summaryStats[displayName]!['created'] = summaryStats[displayName]!['created']! + 1;
+        // Handle createdAt based on its type
+        final createdAtData = data['createdAt'];
+        if (createdAtData is Timestamp) {
+          createdAt = createdAtData.toDate();
+        } else if (createdAtData is String) {
+          try {
+            createdAt = DateTime.parse(createdAtData);
+          } catch (e) {
+            print('Error parsing createdAt string: $createdAtData, using DateTime.now()');
+            createdAt = DateTime.now();
+          }
+        } else {
+          createdAt = DateTime.now();
+        }
+
+        summaryStats[displayName]!['created'] =
+            summaryStats[displayName]!['created']! + 1;
         summaryStats['All']!['created'] = summaryStats['All']!['created']! + 1;
 
-        if (status == 'completed') {
-          summaryStats[displayName]!['completed'] = summaryStats[displayName]!['completed']! + 1;
-          summaryStats['All']!['completed'] = summaryStats['All']!['completed']! + 1;
-        } else if (status == 'ongoing') {
-          summaryStats[displayName]!['ongoing'] = summaryStats[displayName]!['ongoing']! + 1;
+        if (status == 'Completed') {
+          summaryStats[displayName]!['completed'] =
+              summaryStats[displayName]!['completed']! + 1;
+          summaryStats['All']!['completed'] =
+              summaryStats['All']!['completed']! + 1;
+        } else if (status == 'In Progress') {
+          summaryStats[displayName]!['ongoing'] =
+              summaryStats[displayName]!['ongoing']! + 1;
           summaryStats['All']!['ongoing'] = summaryStats['All']!['ongoing']! + 1;
         }
 
         final now = DateTime.now();
         final startOfMonth = DateTime(now.year, now.month, 1);
         if (createdAt.isAfter(startOfMonth)) {
-          summaryStats[displayName]!['thisMonth'] = summaryStats[displayName]!['thisMonth']! + 1;
-          summaryStats['All']!['thisMonth'] = summaryStats['All']!['thisMonth']! + 1;
+          summaryStats[displayName]!['thisMonth'] =
+              summaryStats[displayName]!['thisMonth']! + 1;
+          summaryStats['All']!['thisMonth'] =
+              summaryStats['All']!['thisMonth']! + 1;
         }
       }
     }
 
+    // Total tasks across all tools
+    final totalTasks = taskCounts.values.fold(0, (a, b) => a + b);
+
     // Pie chart sections
     List<PieChartSectionData> _buildPieSections() {
-      if (taskCounts.isEmpty) {
+      if (totalTasks == 0) {
         return [
           PieChartSectionData(
             color: Colors.grey,
             value: 1,
-            title: 'No Tasks (0.0%)',
+            title: '0.0%', // Show only percentage
             titleStyle: const TextStyle(
                 color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
             radius: 70,
@@ -206,7 +233,7 @@ class _ActivityPageState extends State<ActivityPage> {
         ];
       }
 
-      final total = taskCounts.values.fold(0, (a, b) => a + b).toDouble();
+      final total = totalTasks.toDouble();
       return taskCounts.entries.toList().asMap().entries.map((entry) {
         final index = entry.key;
         final e = entry.value;
@@ -224,13 +251,11 @@ class _ActivityPageState extends State<ActivityPage> {
       }).toList();
     }
 
-    final totalTasks = taskCounts.values.fold(0, (a, b) => a + b);
-
     return Scaffold(
       backgroundColor: const Color(0xF0F6F9FF),
       body: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
-            24, 52, 24, math.min(24, screenHeight * 0.03)),
+            24, 40, 24, math.min(16, screenHeight * 0.02)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -242,10 +267,10 @@ class _ActivityPageState extends State<ActivityPage> {
                     fontWeight: FontWeight.bold),
               ),
             ),
-            SizedBox(height: math.min(24, screenHeight * 0.03)),
+            SizedBox(height: math.min(16, screenHeight * 0.02)),
             Container(
               width: screenWidth - 48,
-              height: math.min(screenHeight * 0.35, 280),
+              height: math.min(screenHeight * 0.35, 260),
               padding: EdgeInsets.all(math.min(12, screenWidth * 0.03)),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -257,6 +282,7 @@ class _ActivityPageState extends State<ActivityPage> {
                       offset: const Offset(0, 6))
                 ],
               ),
+              clipBehavior: Clip.hardEdge, // Ensure no overflow
               child: Stack(
                 alignment: Alignment.center,
                 children: [
@@ -282,13 +308,13 @@ class _ActivityPageState extends State<ActivityPage> {
                 ],
               ),
             ),
-            SizedBox(height: math.min(24, screenHeight * 0.03)),
+            SizedBox(height: math.min(16, screenHeight * 0.02)),
             Center(
               child: Wrap(
                 spacing: math.min(16, screenWidth * 0.04),
-                runSpacing: 10,
+                runSpacing: 8,
                 alignment: WrapAlignment.center,
-                children: taskCounts.isEmpty
+                children: totalTasks == 0
                     ? [
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -323,13 +349,18 @@ class _ActivityPageState extends State<ActivityPage> {
                                 .withOpacity(isActive ? 1 : 0.3),
                             borderRadius: BorderRadius.circular(2)),
                       ),
-                      Text(tool, style: const TextStyle(fontSize: 14)),
+                      Text(
+                        tool,
+                        style: const TextStyle(fontSize: 14),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ],
                   );
                 }).toList(),
               ),
             ),
-            SizedBox(height: math.min(56, screenHeight * 0.07)),
+            SizedBox(height: math.min(32, screenHeight * 0.04)),
             MySummary(
               selectedTool: selectedTool,
               summaryStats: summaryStats.map((key, value) => MapEntry(key, {
@@ -341,7 +372,7 @@ class _ActivityPageState extends State<ActivityPage> {
               toolOptions: ['All', ...displayToolTypes],
               onToolChanged: (tool) => setState(() => selectedTool = tool),
             ),
-            SizedBox(height: math.min(40, screenHeight * 0.05)),
+            SizedBox(height: math.min(24, screenHeight * 0.03)),
             const Divider(thickness: 2),
             ToolsStatistics(
               selectedTool: selectedTool,

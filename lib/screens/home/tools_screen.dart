@@ -47,8 +47,8 @@ class _ToolsScreenState extends State<ToolsScreen> {
               TaskTypeCard(
                 label: 'To-do List',
                 subtext: 'Create and manage your daily tasks.',
-                hexColor1: '#80B8E8',
-                hexColor2: '#E3F2FF',
+                hexColor1: '#bbcfff',
+                hexColor2: '#ffffff',
                 imagePath: 'assets/images/todo.png',
                 // test
                 onTap: () => _navigateToToolPage(context, 'to_do'),
@@ -56,8 +56,8 @@ class _ToolsScreenState extends State<ToolsScreen> {
               TaskTypeCard(
                 label: 'Workout Plan',
                 subtext: 'Plan and track your workouts.',
-                hexColor1: '#A480E8',
-                hexColor2: '#EEE4FF',
+                hexColor1: '#b9c0ff',
+                hexColor2: '#ffffff',
                 imagePath: 'assets/images/workout.png',
                 onTap: () => _navigateToToolPage(context, 'workout'),
               ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
 class MySummary extends StatelessWidget {
   final String selectedTool;
@@ -16,6 +17,11 @@ class MySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final fontSize = math.min(14.0, screenHeight * 0.022);
+    final padding = math.min(12.0, screenWidth * 0.03);
+
     print('MySummary - selectedTool: $selectedTool, toolOptions: $toolOptions'); // Debug log
 
     // Fallback if selectedTool is not in toolOptions
@@ -29,15 +35,18 @@ class MySummary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'My Summary',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: padding),
         // Dropdown with outline, half width
         Container(
-          width: MediaQuery.of(context).size.width * 0.5, // Half screen width
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+          width: screenWidth * 0.5, // Half screen width
+          padding: EdgeInsets.symmetric(horizontal: padding, vertical: 0),
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey.shade400, width: 1),
             borderRadius: BorderRadius.circular(8),
@@ -51,22 +60,35 @@ class MySummary extends StatelessWidget {
             items: toolOptions.map((tool) {
               return DropdownMenuItem(
                 value: tool,
-                child: Text(tool),
+                child: Text(
+                  tool,
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  maxLines: 1,
+                ),
               );
             }).toList(),
+            isExpanded: true,
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: padding),
         GridView.count(
           crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
+          crossAxisSpacing: padding,
+          mainAxisSpacing: padding,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.5,
+          childAspectRatio: 1.8, // Adjusted for taller, narrower cards
           children: _universalLabels.map((label) {
             final value = displayStats[label] ?? '0';
-            return _StatCard(label: label, value: value);
+            return _StatCard(
+              label: label,
+              value: value,
+              fontSize: fontSize,
+              padding: padding,
+            );
           }).toList(),
         ),
       ],
@@ -102,35 +124,51 @@ class MySummary extends StatelessWidget {
 class _StatCard extends StatelessWidget {
   final String label;
   final String value;
+  final double fontSize;
+  final double padding;
 
   const _StatCard({
     required this.label,
     required this.value,
+    required this.fontSize,
+    required this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 4)),
+          BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 6, offset: Offset(0, 4)),
         ],
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w500,
+              overflow: TextOverflow.ellipsis,
+            ),
             textAlign: TextAlign.center,
+            maxLines: 1,
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: padding / 2),
           Text(
             value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: TextStyle(
+              fontSize: fontSize + 2,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+              overflow: TextOverflow.ellipsis,
+            ),
+            maxLines: 1,
           ),
         ],
       ),

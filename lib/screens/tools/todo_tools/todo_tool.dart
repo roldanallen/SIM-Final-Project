@@ -237,7 +237,7 @@ class _ToDoToolPageState extends State<ToDoToolPage> {
   }
 }
 
-// Modified widgets from reusable_tools.dart to support error handling
+// Modified widgets to support error handling and scalability
 class TaskTitleInput extends StatelessWidget {
   final TextEditingController controller;
   final String? errorText;
@@ -248,7 +248,6 @@ class TaskTitleInput extends StatelessWidget {
   Widget build(BuildContext context) {
     return _LabeledBox(
       label: 'Task Title',
-      height: 70,
       child: TextField(
         controller: controller,
         decoration: InputDecoration(
@@ -257,6 +256,7 @@ class TaskTitleInput extends StatelessWidget {
           errorText: errorText,
           errorStyle: const TextStyle(height: 0),
         ),
+        style: const TextStyle(fontSize: 14),
       ),
     );
   }
@@ -280,7 +280,6 @@ class DateInputField extends StatelessWidget {
   Widget build(BuildContext context) {
     return _LabeledBox(
       label: label,
-      height: 70,
       child: InkWell(
         onTap: onTap,
         child: Container(
@@ -297,8 +296,9 @@ class DateInputField extends StatelessWidget {
                       ? '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}'
                       : 'Select date',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     color: selectedDate != null ? Colors.black : Colors.grey[600],
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -388,71 +388,90 @@ class DropdownInputRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate max width for each dropdown (accounting for spacing)
+        final maxDropdownWidth = (constraints.maxWidth - 16) / 2;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: _LabeledBox(
-                label: 'Priority',
-                height: 70,
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: priorityError != null && priorityError!.isNotEmpty
-                        ? Border.all(color: Colors.red, width: 1.2)
-                        : null,
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: priority,
-                    decoration: const InputDecoration(
-                      hintText: 'Select priority',
-                      border: InputBorder.none,
+            Row(
+              children: [
+                Expanded(
+                  child: _LabeledBox(
+                    label: 'Priority',
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: priorityError != null && priorityError!.isNotEmpty
+                            ? Border.all(color: Colors.red, width: 1.2)
+                            : null,
+                      ),
+                      child: DropdownMenu<String>(
+                        width: maxDropdownWidth,
+                        initialSelection: priority,
+                        hintText: 'Select',
+                        dropdownMenuEntries: ['Low', 'Medium', 'High']
+                            .map((v) => DropdownMenuEntry(value: v, label: v))
+                            .toList(),
+                        inputDecorationTheme: const InputDecorationTheme(
+                          hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                        ),
+                        textStyle: const TextStyle(fontSize: 14, overflow: TextOverflow.ellipsis),
+                        onSelected: onPriorityChanged,
+                        menuStyle: MenuStyle(
+                          maximumSize: MaterialStatePropertyAll(Size(maxDropdownWidth, 200)),
+                        ),
+                      ),
                     ),
-                    items: ['Low', 'Medium', 'High']
-                        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                        .toList(),
-                    onChanged: onPriorityChanged,
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _LabeledBox(
-                label: 'Status',
-                height: 70,
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: statusError != null && statusError!.isNotEmpty
-                        ? Border.all(color: Colors.red, width: 1.2)
-                        : null,
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: status,
-                    decoration: const InputDecoration(
-                      hintText: 'Select status',
-                      border: InputBorder.none,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _LabeledBox(
+                    label: 'Status',
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: statusError != null && statusError!.isNotEmpty
+                            ? Border.all(color: Colors.red, width: 1.2)
+                            : null,
+                      ),
+                      child: DropdownMenu<String>(
+                        width: maxDropdownWidth,
+                        initialSelection: status,
+                        hintText: 'Select',
+                        dropdownMenuEntries: ['Not Started', 'In Progress', 'Completed']
+                            .map((v) => DropdownMenuEntry(value: v, label: v))
+                            .toList(),
+                        inputDecorationTheme: const InputDecorationTheme(
+                          hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                        ),
+                        textStyle: const TextStyle(fontSize: 14, overflow: TextOverflow.ellipsis),
+                        onSelected: onStatusChanged,
+                        menuStyle: MenuStyle(
+                          maximumSize: MaterialStatePropertyAll(Size(maxDropdownWidth, 200)),
+                        ),
+                      ),
                     ),
-                    items: ['Not Started', 'In Progress', 'Completed']
-                        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
-                        .toList(),
-                    onChanged: onStatusChanged,
                   ),
                 ),
-              ),
+              ],
             ),
+            if (priorityError != null || statusError != null)
+              Row(
+                children: [
+                  Expanded(child: ErrorHandler.displayError(priorityError)),
+                  const SizedBox(width: 16),
+                  Expanded(child: ErrorHandler.displayError(statusError)),
+                ],
+              ),
           ],
-        ),
-        if (priorityError != null || statusError != null)
-          Row(
-            children: [
-              Expanded(child: ErrorHandler.displayError(priorityError)),
-              const SizedBox(width: 16),
-              Expanded(child: ErrorHandler.displayError(statusError)),
-            ],
-          ),
-      ],
+        );
+      },
     );
   }
 }
@@ -476,6 +495,7 @@ class DescriptionField extends StatelessWidget {
           errorText: errorText,
           errorStyle: const TextStyle(height: 0),
         ),
+        style: const TextStyle(fontSize: 14),
       ),
     );
   }
@@ -649,6 +669,7 @@ class StepList extends StatelessWidget {
                     child: Text(
                       steps[index],
                       style: const TextStyle(fontSize: 15, color: Colors.black87),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 );
@@ -684,8 +705,11 @@ class _LabeledBox extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            height: height,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            constraints: BoxConstraints(
+              minHeight: height ?? 50,
+              maxHeight: height ?? 70,
+            ),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
