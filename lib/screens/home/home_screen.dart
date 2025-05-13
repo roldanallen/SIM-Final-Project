@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:software_development/widgets/task_window.dart';
 import 'package:software_development/widgets/profile_icon_settings.dart';
 import 'package:software_development/screens/tools/reusable_tools/task_viewer.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -38,13 +40,23 @@ class _HomeScreenState extends State<HomeScreen> {
     'customplan': 'Custom Plan',
   };
 
+  bool _isOnline = true;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+
   @override
   void initState() {
     super.initState();
-    _loadProfileImage();
-    _fetchUserName();
     _enableFirestoreOffline();
-    _fetchTasks();
+    _loadProfileImage();
+    _loadCachedUserName();
+    _loadCachedTasksAndCounts();
+    _initConnectivity();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _enableFirestoreOffline() async {
@@ -61,30 +73,60 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _fetchUserName() async {
-    if (userId == null) return;
-    final userSnap = await FirebaseFirestore.instance
-        .collection('userData')
-        .doc(userId)
-        .get();
-    if (userSnap.exists && mounted) {
-      final data = userSnap.data();
-      final firstName = data?['firstName'] ?? '';
-      setState(() => userName = firstName);
+  Future<void> _loadCachedUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedName = prefs.getString('userName');
+    if (cachedName != null && mounted) {
+      setState(() => userName = cachedName);
     }
   }
 
-  Future<void> _fetchTasks() async {
+  Future<void> _loadCachedTasksAndCounts() async {
     final prefs = await SharedPreferences.getInstance();
     final cachedTasksJson = prefs.getString('cached_tasks');
     if (cachedTasksJson != null && mounted) {
       final tasks = List<Map<String, dynamic>>.from(jsonDecode(cachedTasksJson));
       setState(() {
         _cachedTasks = tasks;
+        _toolTaskCounts = _calculateToolTaskCounts(tasks);
         isLoading = false;
       });
+    } else {
+      setState(() => isLoading = false); // Show UI with empty data if no cache
     }
+  }
 
+  Map<String, int> _calculateToolTaskCounts(List<Map<String, dynamic>> tasks) {
+    final Map<String, int> counts = {};
+    final tools = ['To-do', 'Workout', 'Water Reminder', 'Diet', 'Custom Plan'];
+    for (var tool in tools) {
+      counts[tool] = tasks.where((task) => task['taskType'] == tool).length;
+    }
+    return counts;
+  }
+
+  Future<void> _fetchUserName() async {
+    if (userId == null) return;
+    try {
+      final userSnap = await FirebaseFirestore.instance
+          .collection('userData')
+          .doc(userId)
+          .get();
+      if (userSnap.exists && mounted) {
+        final data = userSnap.data();
+        final firstName = data?['firstName'] ?? '';
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userName', firstName);
+        setState(() => userName = firstName);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => error = 'Error fetching username: $e');
+      }
+    }
+  }
+
+  Future<void> _fetchTasks() async {
     if (userId == null) {
       setState(() {
         error = 'Please sign in';
@@ -95,20 +137,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final tasks = await _fetchAllTasks();
-      final toolCounts = await _fetchToolTaskCounts();
+      final toolCounts = _calculateToolTaskCounts(tasks); // Use cached tasks for consistency
+      final prefs = await SharedPreferences.getInstance();
       await prefs.setString('cached_tasks', jsonEncode(tasks));
       if (mounted) {
         setState(() {
           _cachedTasks = tasks;
           _toolTaskCounts = toolCounts;
-          isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           error = 'Error loading tasks: $e';
-          isLoading = false;
         });
       }
     }
@@ -140,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final isCompleted = data['completed'] != null ? data['completed'] as bool : false;
         allTasks.add({
           'taskId': taskDoc.id,
-          'taskType': displayName, // Use display name for consistency
+          'taskType': displayName,
           'title': data['title'] ?? '',
           'priority': data['priority'] ?? 'Low',
           'completed': isCompleted,
@@ -151,45 +192,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return allTasks;
   }
 
-  Future<Map<String, int>> _fetchToolTaskCounts() async {
-    if (userId == null) return {};
-
-    final Map<String, int> toolCounts = {};
-    final userDocRef = FirebaseFirestore.instance.collection('userData').doc(userId);
-    final userDocSnapshot = await userDocRef.get();
-    if (!userDocSnapshot.exists) return {};
-
-    final toolsSnapshot = await userDocRef.collection('tools').get();
-    if (toolsSnapshot.docs.isEmpty) return {};
-
-    // Initialize counts for all defined tools
-    final tools = ['To-do', 'Workout', 'Water Reminder', 'Diet', 'Custom Plan'];
-    for (var tool in tools) {
-      toolCounts[tool] = 0;
-    }
-
-    // Fetch tasks for each tool and map to display names
-    for (var toolDoc in toolsSnapshot.docs) {
-      final toolId = toolDoc.id.toLowerCase();
-      final displayName = _toolDisplayNames[toolId] ?? toolId;
-      if (!tools.contains(displayName)) continue; // Skip unmapped tools
-
-      final tasksSnapshot = await userDocRef
-          .collection('tools')
-          .doc(toolId)
-          .collection('tasks')
-          .get();
-
-      toolCounts[displayName] = tasksSnapshot.docs.length;
-    }
-
-    return toolCounts;
-  }
-
   Future<void> _deleteTask(String taskId, String taskType) async {
     if (userId == null) return;
 
-    // Map display name back to Firestore toolId
     final toolId = _toolDisplayNames.entries
         .firstWhere((entry) => entry.value == taskType, orElse: () => MapEntry(taskType.toLowerCase(), taskType))
         .key;
@@ -205,15 +210,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() {
       _cachedTasks.removeWhere((task) => task['taskId'] == taskId);
+      _toolTaskCounts = _calculateToolTaskCounts(_cachedTasks);
     });
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('cached_tasks', jsonEncode(_cachedTasks));
-    _fetchToolTaskCounts().then((counts) {
-      setState(() {
-        _toolTaskCounts = counts;
-      });
-    });
   }
 
   Future<void> _markAsDone(String taskId) async {
@@ -237,15 +238,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() {
       _cachedTasks.removeWhere((task) => task['taskId'] == taskId);
+      _toolTaskCounts = _calculateToolTaskCounts(_cachedTasks);
     });
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('cached_tasks', jsonEncode(_cachedTasks));
-    _fetchToolTaskCounts().then((counts) {
-      setState(() {
-        _toolTaskCounts = counts;
-      });
-    });
   }
 
   Widget _buildSearchBar(bool isEnabled) {
@@ -253,6 +250,13 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(
         color: isEnabled ? Colors.white : Colors.grey.shade300,
         borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
       child: TextField(
         controller: _searchController,
@@ -288,15 +292,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Color _getCategoryColor(String tool) {
     switch (tool.toLowerCase()) {
       case 'to-do':
-        return Color(0xFFbbcfff);
+        return const Color(0xFFB7B1F2);
       case 'workout':
-        return Color(0xFFb9c0ff);
+        return const Color(0xFFFDB7EA);
       case 'water reminder':
-        return Color(0xFFc8b6ff);
+        return const Color(0xFFFFDCCC);
       case 'diet':
-        return Color(0xFFe7c6ff);
+        return const Color(0xFFFBF3B9);
       case 'custom plan':
-        return Color(0xFFffd6ff);
+        return const Color(0xFFffd6ff);
       default:
         return Colors.grey;
     }
@@ -315,6 +319,34 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _initConnectivity() async {
+    final connectivityResults = await Connectivity().checkConnectivity();
+    if (mounted) {
+      setState(() {
+        _isOnline = connectivityResults.any((result) =>
+        result == ConnectivityResult.wifi || result == ConnectivityResult.mobile);
+      });
+    }
+
+    if (_isOnline) {
+      _fetchUserName();
+      _fetchTasks();
+    }
+
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
+      if (mounted) {
+        setState(() {
+          _isOnline = results.any((result) =>
+          result == ConnectivityResult.wifi || result == ConnectivityResult.mobile);
+        });
+        if (_isOnline) {
+          _fetchUserName();
+          _fetchTasks();
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
@@ -326,7 +358,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    if (isLoading && _cachedTasks.isEmpty) {
+    if (isLoading && _cachedTasks.isEmpty && userName.isEmpty) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
@@ -444,7 +476,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 style: TextStyle(
                                   fontSize: screenWidth * 0.05,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.black54,
+                                  color: Colors.black.withOpacity(0.6),
                                 ),
                               ),
                               SizedBox(height: screenHeight * 0.01),
@@ -452,7 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 "${_toolTaskCounts[tool] ?? 0} tasks",
                                 style: TextStyle(
                                   fontSize: screenWidth * 0.04,
-                                  color: Colors.white,
+                                  color: Colors.black45,
                                 ),
                               ),
                             ],
@@ -475,18 +507,31 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               SizedBox(height: screenHeight * 0.02),
 
-              _buildSearchBar(filteredTasks.isNotEmpty),
+              _buildSearchBar(_cachedTasks.isNotEmpty),
               SizedBox(height: screenHeight * 0.02),
 
-              if (filteredTasks.isEmpty)
+              if (visibleTasks.isEmpty && _cachedTasks.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: screenHeight * 0.05),
+                  child: Center(
+                    child: Text(
+                      'No tasks found',
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.04,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                )
+              else if (_cachedTasks.isEmpty)
                 Center(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: screenHeight * 0.05),
                     child: Text(
-                      "No specific task today",
+                      'No specific task today',
                       style: TextStyle(
-                        color: Colors.grey.shade600,
                         fontSize: screenWidth * 0.04,
+                        color: Colors.grey.shade600,
                       ),
                     ),
                   ),
@@ -526,7 +571,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   borderRadius: BorderRadius.circular(10),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black12,
+                                      color: Colors.black26,
                                       blurRadius: 4,
                                       offset: Offset(0, 2),
                                     ),

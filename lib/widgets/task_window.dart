@@ -3,6 +3,7 @@ import 'package:software_development/screens/tools/todo_tools/todo_tool.dart';
 import 'package:software_development/screens/tools/workout_tools/workout_tool.dart';
 import 'package:software_development/screens/tools/diet_tools/diet_tool.dart';
 import 'package:software_development/screens/tools/todo_tools/todo_selection.dart';
+import 'package:software_development/screens/tools/workout_tools/workout_selection.dart';
 
 class TaskWindow extends StatelessWidget {
   const TaskWindow({super.key});
@@ -43,7 +44,7 @@ class TaskWindow extends StatelessWidget {
               children: [
                 _taskButton(context, 'To-do', Icons.check_circle, Colors.blue, true, 'to_do'),
                 _taskButton(context, 'Workout', Icons.fitness_center, Colors.green, true, 'workout'),
-                _taskButton(context, 'Diet', Icons.restaurant, Colors.red, true, 'diet'),
+                _taskButton(context, 'Diet', Icons.restaurant, Colors.red, false, 'diet'),
                 _taskButton(context, 'Gym', Icons.sports_gymnastics, Colors.orange, false, 'gym'),
                 _taskButton(context, 'Water', Icons.water_drop, Colors.teal, false, 'water'),
                 _taskButton(context, 'Custom', Icons.edit, Colors.purple, false, 'custom'),
@@ -90,7 +91,7 @@ class TaskWindow extends StatelessWidget {
             targetPage = const ToDoTypeSelectionScreen();
             break;
           case 'workout':
-            targetPage = const WorkoutToolPage();
+            targetPage = const WorkoutSelectionScreen();
             break;
           case 'diet':
             targetPage = const DietToolPage();

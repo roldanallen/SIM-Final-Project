@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 
 class TaskViewer extends StatefulWidget {
   final String category;
@@ -21,11 +25,50 @@ class _TaskViewerState extends State<TaskViewer> {
   String currentFilter = 'Total Task'; // Default filter
   String sortType = 'Sort by Date'; // Default sort type
   bool isAscending = true; // For sorting direction
+  bool _isOnline = true;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
-    _fetchTasks();
+    _enableFirestoreOffline();
+    _loadCachedTasks();
+    _initConnectivity();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _enableFirestoreOffline() async {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+    );
+  }
+
+  Future<void> _loadCachedTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cacheKey = 'tasks_${widget.category.toLowerCase()}'; // Unique key per category
+    final cachedTasksJson = prefs.getString(cacheKey);
+    if (cachedTasksJson != null && mounted) {
+      final taskList = List<Map<String, dynamic>>.from(jsonDecode(cachedTasksJson)).map((task) {
+        return {
+          ...task,
+          'createdAt': task['createdAt'] is String ? DateTime.parse(task['createdAt']) : DateTime.now(),
+        };
+      }).toList();
+      setState(() {
+        tasks = taskList;
+        filteredTasks = taskList;
+        isLoading = false;
+      });
+    } else {
+      setState(() {
+        isLoading = false; // Show UI with empty tasks if no cache
+      });
+    }
   }
 
   Future<void> _fetchTasks() async {
@@ -65,21 +108,62 @@ class _TaskViewerState extends State<TaskViewer> {
           'title': data['title'] ?? '',
           'priority': data['priority'] ?? 'Low',
           'completed': data['completed'] != null ? data['completed'] as bool : false,
-          'createdAt': createdAt,
+          'createdAt': createdAt.toIso8601String(), // Convert to string for JSON encoding
         };
       }).toList();
 
-      setState(() {
-        tasks = taskList;
-        filteredTasks = taskList;
-        isLoading = false;
-      });
+      // Cache the fetched tasks
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'tasks_${widget.category.toLowerCase()}';
+      await prefs.setString(cacheKey, jsonEncode(taskList));
+
+      if (mounted) {
+        setState(() {
+          tasks = taskList.map((task) {
+            return {
+              ...task,
+              'createdAt': DateTime.parse(task['createdAt']), // Parse back to DateTime
+            };
+          }).toList();
+          filteredTasks = tasks;
+        });
+      }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          error = 'Error loading tasks: $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _initConnectivity() async {
+    // Initial connectivity check
+    final connectivityResults = await Connectivity().checkConnectivity();
+    if (mounted) {
       setState(() {
-        error = 'Error loading tasks: $e';
-        isLoading = false;
+        _isOnline = connectivityResults.any((result) =>
+        result == ConnectivityResult.wifi || result == ConnectivityResult.mobile);
       });
     }
+
+    // Fetch data if online
+    if (_isOnline) {
+      await _fetchTasks();
+    }
+
+    // Listen for connectivity changes
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
+      if (mounted) {
+        setState(() {
+          _isOnline = results.any((result) =>
+          result == ConnectivityResult.wifi || result == ConnectivityResult.mobile);
+        });
+        if (_isOnline) {
+          _fetchTasks(); // Refresh data when back online
+        }
+      }
+    });
   }
 
   String _mapCategoryToToolId(String category) {
@@ -140,7 +224,7 @@ class _TaskViewerState extends State<TaskViewer> {
       );
     }
 
-    if (isLoading) {
+    if (isLoading && tasks.isEmpty) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
@@ -221,8 +305,8 @@ class _TaskViewerState extends State<TaskViewer> {
               Text(
                 mainDescription,
                 style: TextStyle(
-                  fontSize: 16 * fontScale,
-                  color: Colors.grey.shade600,
+                  fontSize: 20 * fontScale,
+                  color: Colors.black,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -319,6 +403,12 @@ class _TaskViewerState extends State<TaskViewer> {
                 'Details',
                 style: TextStyle(fontSize: 20 * fontScale, fontWeight: FontWeight.bold),
               ),
+              SizedBox(height: 14 * paddingScale),
+              Text(
+                'Every milestone counts—check your stats and stay motivated!',
+                style: TextStyle(fontSize: 14 * fontScale, color: Colors.grey.shade600),
+              ),
+              SizedBox(height: 16 * paddingScale),
               GridView.count(
                 crossAxisCount: 2,
                 crossAxisSpacing: 16 * paddingScale,
@@ -518,7 +608,7 @@ class _TaskViewerState extends State<TaskViewer> {
           BarChartRodData(
             toY: stats.values.elementAt(i).toDouble(),
             width: 22,
-            color: [Colors.blue, Colors.green, Colors.orange][i],
+            color: [Colors.lightBlueAccent, Colors.purpleAccent, Colors.pinkAccent][i],
             borderRadius: BorderRadius.zero,
           )
         ],

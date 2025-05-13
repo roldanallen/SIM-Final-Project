@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:software_development/screens/tools/todo_tools/todo_selection.dart';
+import 'package:software_development/screens/tools/workout_tools/workout_selection.dart'; // Add this import
 import 'package:software_development/screens/tools/workout_tools/workout_tool.dart';
 import 'package:software_development/screens/tools/diet_tools/diet_tool.dart';
 import 'package:software_development/widgets/task_card.dart';
@@ -29,6 +30,40 @@ class _ToolsScreenState extends State<ToolsScreen> {
     }
   }
 
+  void _navigateToToolPage(BuildContext context, String toolType) {
+    switch (toolType) {
+      case 'to_do':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ToDoTypeSelectionScreen(
+              onTypeSelected: (selectedType) {
+                print('Selected Type: $selectedType');
+              },
+            ),
+          ),
+        );
+        break;
+      case 'workout':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const WorkoutSelectionScreen(), // Navigate to WorkoutSelectionScreen
+          ),
+        );
+        break;
+      case 'diet':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const DietToolPage(),
+          ),
+        );
+        break;
+    // Add more tools here as needed
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -50,7 +85,6 @@ class _ToolsScreenState extends State<ToolsScreen> {
                 hexColor1: '#bbcfff',
                 hexColor2: '#ffffff',
                 imagePath: 'assets/images/todo.png',
-                // test
                 onTap: () => _navigateToToolPage(context, 'to_do'),
               ),
               TaskTypeCard(
@@ -94,42 +128,5 @@ class _ToolsScreenState extends State<ToolsScreen> {
         ),
       ),
     );
-  }
-
-  void _navigateToToolPage(BuildContext context, String toolType) {
-    switch (toolType) {
-      case 'to_do':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                ToDoTypeSelectionScreen(
-                  onTypeSelected: (selectedType) {
-                    // Handle the selected type (e.g., navigate to the appropriate page or do something with it)
-                    print(
-                        'Selected Type: $selectedType'); // You can replace this with your own logic
-                  },
-                ),
-          ),
-        );
-        break;
-      case 'workout':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const WorkoutToolPage(),
-          ),
-        );
-        break;
-      case 'diet':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const DietToolPage(),
-          ),
-        );
-        break;
-    // Add more tools here as needed
-    }
   }
 }
