@@ -491,36 +491,35 @@ class _TaskViewerState extends State<TaskViewer> {
                     widget.category,
                     style: TextStyle(fontSize: 20 * fontScale, fontWeight: FontWeight.bold),
                   ),
-                  if (widget.category.toLowerCase() == 'to-do')
-                    PopupMenuButton<String>(
-                      icon: Icon(Icons.filter_list, color: Colors.black87, size: 24 * fontScale),
-                      onSelected: (String value) {
-                        setState(() {
-                          sortType = value;
-                          // Default: Name (A-Z), Date (recent first), Status/Priority (top priority)
-                          isAscending = value != 'Sort by Date';
-                          _sortTasks();
-                        });
-                      },
-                      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                        const PopupMenuItem<String>(
-                          value: 'Sort by Name',
-                          child: Text('Sort by Name'),
-                        ),
-                        const PopupMenuItem<String>(
-                          value: 'Sort by Date',
-                          child: Text('Sort by Date'),
-                        ),
-                        const PopupMenuItem<String>(
-                          value: 'Sort by Status',
-                          child: Text('Sort by Status'),
-                        ),
-                        const PopupMenuItem<String>(
-                          value: 'Sort by Priority',
-                          child: Text('Sort by Priority'),
-                        ),
-                      ],
-                    ),
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.filter_list, color: Colors.black87, size: 24 * fontScale),
+                    onSelected: (String value) {
+                      setState(() {
+                        sortType = value;
+                        // Default: Name (A-Z), Date (recent first), Status/Priority (top priority)
+                        isAscending = value != 'Sort by Date';
+                        _sortTasks();
+                      });
+                    },
+                    itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'Sort by Name',
+                        child: Text('Sort by Name'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'Sort by Date',
+                        child: Text('Sort by Date'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'Sort by Status',
+                        child: Text('Sort by Status'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'Sort by Priority',
+                        child: Text('Sort by Priority'),
+                      ),
+                    ],
+                  ),
                 ],
               ),
               SizedBox(height: 16 * paddingScale),

@@ -9,7 +9,7 @@ class WorkoutSelectionScreen extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => WorkoutToolPage(workoutType: workoutType),
+        builder: (context) => WorkoutToolPage(taskType: workoutType),
       ),
     );
   }
@@ -132,21 +132,6 @@ class WorkoutSelectionScreen extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-// Placeholder for WorkoutToolPage
-class WorkoutToolPage extends StatelessWidget {
-  final String workoutType;
-
-  const WorkoutToolPage({Key? key, required this.workoutType}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(workoutType)),
-      body: Center(child: Text('Workout Tool for $workoutType')),
     );
   }
 }

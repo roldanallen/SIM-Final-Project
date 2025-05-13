@@ -121,8 +121,8 @@ class TaskTypeCard extends StatelessWidget {
               opacity: enabled ? 0.7 : 0.3,
               child: Image.asset(
                 imagePath,
-                width: 80, // Larger image to match the UI
-                height: 80,
+                width: 60, // Larger image to match the UI
+                height: 60,
                 fit: BoxFit.cover,
                 color: enabled ? null : Colors.black38,
               ),

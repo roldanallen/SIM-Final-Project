@@ -24,8 +24,8 @@ class WorkoutToolPage extends StatelessWidget {
     return ToolsForm(
       toolType: taskType, // Store task type (e.g., 'cardio') in document
       titleLabel: _getTitleLabel(taskType),
-      priorityOptions: ['Low', 'Moderate', 'High'],
-      statusOptions: ['Planned', 'In Progress', 'Completed'],
+      priorityOptions: ['Low', 'Medium', 'High'],
+      statusOptions: ['Not Started', 'In Progress'],
       collectionPath: 'workout', // Save all workout tasks under 'workout'
       requireSteps: true,
       parentType: 'workout', // Navigate back to WorkoutSelectionScreen
