@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:software_development/widgets/task_card.dart';
-import 'package:software_development/screens/tools/workout_tools/workout_tool.dart';
+import 'package:software_development/screens/tools/workout_tools/workout_form.dart';
 
 class WorkoutSelectionScreen extends StatelessWidget {
   const WorkoutSelectionScreen({Key? key}) : super(key: key);

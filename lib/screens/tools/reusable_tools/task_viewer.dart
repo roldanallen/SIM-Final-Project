@@ -24,7 +24,7 @@ class _TaskViewerState extends State<TaskViewer> {
   String? error;
   String currentFilter = 'Total Task'; // Default filter
   String sortType = 'Sort by Date'; // Default sort type
-  bool isAscending = true; // For sorting direction
+  bool isAscending = false; // Default to false for Date (recent first)
   bool _isOnline = true;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
@@ -193,17 +193,44 @@ class _TaskViewerState extends State<TaskViewer> {
   void _sortTasks() {
     setState(() {
       filteredTasks.sort((a, b) {
-        if (sortType == 'Sort by Date') {
-          final dateA = a['createdAt'] as DateTime;
-          final dateB = b['createdAt'] as DateTime;
-          return isAscending ? dateA.compareTo(dateB) : dateB.compareTo(dateA);
-        } else {
+        if (sortType == 'Sort by Name') {
           final titleA = (a['title'] as String).toLowerCase();
           final titleB = (b['title'] as String).toLowerCase();
-          return isAscending
-              ? titleA.compareTo(titleB)
-              : titleB.compareTo(titleA);
+          return isAscending ? titleA.compareTo(titleB) : titleB.compareTo(titleA);
+        } else if (sortType == 'Sort by Date') {
+          final dateA = a['createdAt'] as DateTime;
+          final dateB = b['createdAt'] as DateTime;
+          // Recent first: descending order when isAscending = false
+          return isAscending ? dateA.compareTo(dateB) : dateB.compareTo(dateA);
+        } else if (sortType == 'Sort by Status') {
+          // Define status: In progress, Not yet started (exclude Completed)
+          String getStatus(Map<String, dynamic> task) {
+            final isCompleted = task['completed'] as bool;
+            if (isCompleted) return 'Completed';
+            final createdAt = (task['createdAt'] as DateTime).toString().split(' ')[0];
+            return createdAt.isEmpty ? 'Not yet started' : 'In progress';
+          }
+
+          final statusA = getStatus(a);
+          final statusB = getStatus(b);
+          // Only consider In progress and Not yet started
+          if (statusA == 'Completed' && statusB == 'Completed') return 0;
+          if (statusA == 'Completed') return isAscending ? 1 : -1;
+          if (statusB == 'Completed') return isAscending ? -1 : 1;
+          final statusOrder = ['In progress', 'Not yet started'];
+          final indexA = statusOrder.indexOf(statusA);
+          final indexB = statusOrder.indexOf(statusB);
+          return isAscending ? indexA.compareTo(indexB) : indexB.compareTo(indexA);
+        } else if (sortType == 'Sort by Priority') {
+          // Priority order: High, Medium, Low
+          final priorityOrder = ['High', 'Medium', 'Low'];
+          final priorityA = a['priority'] as String;
+          final priorityB = b['priority'] as String;
+          final indexA = priorityOrder.indexOf(priorityA);
+          final indexB = priorityOrder.indexOf(priorityB);
+          return isAscending ? indexA.compareTo(indexB) : indexB.compareTo(indexA);
         }
+        return 0; // Fallback
       });
     });
   }
@@ -426,7 +453,7 @@ class _TaskViewerState extends State<TaskViewer> {
                     child: Container(
                       padding: EdgeInsets.all(16 * paddingScale),
                       decoration: BoxDecoration(
-                        color: currentFilter == entry.key ? Colors.grey.shade200 : Colors.white,
+                        color: currentFilter == entry.key ? Colors.green.shade100 : Colors.white,
                         borderRadius: BorderRadius.circular(16 * paddingScale),
                         boxShadow: [
                           BoxShadow(
@@ -470,26 +497,27 @@ class _TaskViewerState extends State<TaskViewer> {
                       onSelected: (String value) {
                         setState(() {
                           sortType = value;
-                          if (sortType == 'Sort by Date') {
-                            isAscending = true; // Default for date sorting
-                          } else {
-                            isAscending = sortType == 'Ascending';
-                          }
+                          // Default: Name (A-Z), Date (recent first), Status/Priority (top priority)
+                          isAscending = value != 'Sort by Date';
                           _sortTasks();
                         });
                       },
                       itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
                         const PopupMenuItem<String>(
+                          value: 'Sort by Name',
+                          child: Text('Sort by Name'),
+                        ),
+                        const PopupMenuItem<String>(
                           value: 'Sort by Date',
                           child: Text('Sort by Date'),
                         ),
                         const PopupMenuItem<String>(
-                          value: 'Ascending',
-                          child: Text('Ascending'),
+                          value: 'Sort by Status',
+                          child: Text('Sort by Status'),
                         ),
                         const PopupMenuItem<String>(
-                          value: 'Descending',
-                          child: Text('Descending'),
+                          value: 'Sort by Priority',
+                          child: Text('Sort by Priority'),
                         ),
                       ],
                     ),
@@ -608,7 +636,7 @@ class _TaskViewerState extends State<TaskViewer> {
           BarChartRodData(
             toY: stats.values.elementAt(i).toDouble(),
             width: 22,
-            color: [Colors.lightBlueAccent, Colors.purpleAccent, Colors.pinkAccent][i],
+            color: [Color(0xFFB7B1F2), Color(0xFFFDB7EA), Color(0xFFFBF3B9)][i],
             borderRadius: BorderRadius.zero,
           )
         ],

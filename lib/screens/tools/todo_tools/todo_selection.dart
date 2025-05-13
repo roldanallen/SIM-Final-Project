@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:software_development/widgets/task_card.dart';
-import 'todo_tool.dart';
+import 'package:software_development/screens/tools/todo_tools/todo_form.dart';
 
 class ToDoTypeSelectionScreen extends StatelessWidget {
   final void Function(String)? onTypeSelected;
@@ -43,7 +43,6 @@ class ToDoTypeSelectionScreen extends StatelessWidget {
               ),
             ),
             SizedBox(height: screenHeight * 0.01),
-            // Mini Description
             Text(
               'Organize your day with ease—pick the perfect to-do plan!',
               style: TextStyle(
@@ -53,16 +52,13 @@ class ToDoTypeSelectionScreen extends StatelessWidget {
               ),
             ),
             SizedBox(height: screenHeight * 0.01),
-            // Wide image below the description
             Image.asset(
-              'assets/images/todo_banner.png', // Update with your image asset
-              width: double.infinity, // Full width within padding
-              height: screenHeight * 0.25, // Adjustable height, scalable for small screens
+              'assets/images/todo_banner.png',
+              width: double.infinity,
+              height: screenHeight * 0.25,
               fit: BoxFit.cover,
             ),
             SizedBox(height: screenHeight * 0.04),
-
-            // To-do Types Section
             Text(
               'Create your own task',
               style: TextStyle(
@@ -96,7 +92,7 @@ class ToDoTypeSelectionScreen extends StatelessWidget {
               hexColor1: '#A480E8',
               hexColor2: '#FFFFFF',
               imagePath: 'assets/images/study.png',
-              onTap: () => navigateToTool(context, 'study'), // Fixed to match label
+              onTap: () => navigateToTool(context, 'study'),
             ),
             SizedBox(height: screenHeight * 0.02),
             TaskTypeCard(
@@ -105,7 +101,7 @@ class ToDoTypeSelectionScreen extends StatelessWidget {
               hexColor1: '#E880D3',
               hexColor2: '#FFFFFF',
               imagePath: 'assets/images/work.png',
-              onTap: () => navigateToTool(context, 'work'), // Fixed to match label
+              onTap: () => navigateToTool(context, 'work'),
             ),
             SizedBox(height: screenHeight * 0.02),
             TaskTypeCard(
@@ -114,7 +110,7 @@ class ToDoTypeSelectionScreen extends StatelessWidget {
               hexColor1: '#f5b5bd',
               hexColor2: '#FFFFFF',
               imagePath: 'assets/images/project.png',
-              onTap: () => navigateToTool(context, 'project'), // Fixed to match label
+              onTap: () => navigateToTool(context, 'project'),
             ),
           ],
         ),

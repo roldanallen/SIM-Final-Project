@@ -109,6 +109,8 @@ class DropdownInputRow extends StatelessWidget {
   final String? status;
   final Function(String?) onPriorityChanged;
   final Function(String?) onStatusChanged;
+  final List<String> priorityOptions;
+  final List<String> statusOptions;
 
   const DropdownInputRow({
     super.key,
@@ -116,6 +118,8 @@ class DropdownInputRow extends StatelessWidget {
     required this.status,
     required this.onPriorityChanged,
     required this.onStatusChanged,
+    required this.priorityOptions,
+    required this.statusOptions,
   });
 
   @override
@@ -132,7 +136,7 @@ class DropdownInputRow extends StatelessWidget {
                 hintText: 'Select priority',
                 border: InputBorder.none,
               ),
-              items: ['Low', 'Medium', 'High']
+              items: priorityOptions
                   .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                   .toList(),
               onChanged: onPriorityChanged,
@@ -150,7 +154,7 @@ class DropdownInputRow extends StatelessWidget {
                 hintText: 'Select status',
                 border: InputBorder.none,
               ),
-              items: ['Not Started', 'In Progress', 'Completed']
+              items: statusOptions
                   .map((v) => DropdownMenuItem(value: v, child: Text(v)))
                   .toList(),
               onChanged: onStatusChanged,
@@ -183,22 +187,23 @@ class DescriptionField extends StatelessWidget {
   }
 }
 
-/// Full-width green save button with rounded corners
+/// Full-width save button with rounded corners, grey when disabled, green when enabled
 class SaveButton extends StatelessWidget {
   final VoidCallback onPressed;
-  const SaveButton({super.key, required this.onPressed});
+  final bool isEnabled;
+
+  const SaveButton({super.key, required this.onPressed, required this.isEnabled});
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: onPressed,
+        onPressed: isEnabled ? onPressed : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
+          backgroundColor: isEnabled ? Colors.green : Colors.grey,
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         ),
         child: const Text(
           'Save',
@@ -229,12 +234,11 @@ class _LabeledBox extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Field label
-          Text(label,
-              style:
-              const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
           const SizedBox(height: 6),
-          // White box with optional fixed height
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             height: height,
@@ -246,7 +250,7 @@ class _LabeledBox extends StatelessWidget {
                   color: Colors.black12,
                   blurRadius: 6,
                   offset: Offset(0, 3),
-                )
+                ),
               ],
             ),
             child: Align(

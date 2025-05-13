@@ -28,9 +28,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, int> _toolTaskCounts = {};
   bool isLoading = true;
   String? error;
-  Map<String, bool> _expandedTasks = {};
+  Map<String, bool> _todayExpandedTasks = {};
+  Map<String, bool> _onGoingExpandedTasks = {};
+  String _todaySortOption = 'Sort by Priority';
+  String _onGoingSortOption = 'Sort by Priority';
 
-  // Map Firestore tool IDs to display names
   final Map<String, String> _toolDisplayNames = {
     'todo': 'To-do',
     'gym': 'Gym',
@@ -56,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _connectivitySubscription?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -92,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
         isLoading = false;
       });
     } else {
-      setState(() => isLoading = false); // Show UI with empty data if no cache
+      setState(() => isLoading = false);
     }
   }
 
@@ -137,19 +140,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final tasks = await _fetchAllTasks();
-      final toolCounts = _calculateToolTaskCounts(tasks); // Use cached tasks for consistency
+      final toolCounts = _calculateToolTaskCounts(tasks);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('cached_tasks', jsonEncode(tasks));
       if (mounted) {
         setState(() {
           _cachedTasks = tasks;
           _toolTaskCounts = toolCounts;
+          isLoading = false;
+          _todayExpandedTasks.clear();
+          _onGoingExpandedTasks.clear();
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           error = 'Error loading tasks: $e';
+          isLoading = false;
         });
       }
     }
@@ -185,6 +192,11 @@ class _HomeScreenState extends State<HomeScreen> {
           'title': data['title'] ?? '',
           'priority': data['priority'] ?? 'Low',
           'completed': isCompleted,
+          'createdAt': data['createdAt'] is Timestamp
+              ? (data['createdAt'] as Timestamp).toDate().toIso8601String()
+              : data['createdAt'] is String
+              ? data['createdAt']
+              : '',
         });
       }
     }
@@ -211,6 +223,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _cachedTasks.removeWhere((task) => task['taskId'] == taskId);
       _toolTaskCounts = _calculateToolTaskCounts(_cachedTasks);
+      _todayExpandedTasks.remove(taskId);
+      _onGoingExpandedTasks.remove(taskId);
     });
 
     final prefs = await SharedPreferences.getInstance();
@@ -239,6 +253,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _cachedTasks.removeWhere((task) => task['taskId'] == taskId);
       _toolTaskCounts = _calculateToolTaskCounts(_cachedTasks);
+      _todayExpandedTasks.remove(taskId);
+      _onGoingExpandedTasks.remove(taskId);
     });
 
     final prefs = await SharedPreferences.getInstance();
@@ -287,6 +303,11 @@ class _HomeScreenState extends State<HomeScreen> {
       default:
         return 0;
     }
+  }
+
+  int _typeToInt(String taskType) {
+    const order = ['To-do', 'Workout', 'Water Reminder', 'Diet', 'Custom Plan'];
+    return order.indexOf(taskType);
   }
 
   Color _getCategoryColor(String tool) {
@@ -347,6 +368,178 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Widget _buildTaskList({
+    required List<Map<String, dynamic>> tasks,
+    required double screenHeight,
+    required double screenWidth,
+    required Map<String, bool> expandedTasks,
+    required Function(String) onLongPress,
+  }) {
+    if (tasks.isEmpty && _cachedTasks.isNotEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: screenHeight * 0.05),
+        child: Center(
+          child: Text(
+            'No tasks found',
+            style: TextStyle(
+              fontSize: screenWidth * 0.04,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ),
+      );
+    } else if (_cachedTasks.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: screenHeight * 0.05),
+          child: Text(
+            'No tasks',
+            style: TextStyle(
+              fontSize: screenWidth * 0.04,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        SizedBox(
+          height: screenHeight * 0.08 * 5,
+          child: ListView.builder(
+            shrinkWrap: true,
+            physics: const AlwaysScrollableScrollPhysics(),
+            itemCount: tasks.length,
+            itemBuilder: (context, index) {
+              final task = tasks[index];
+              final taskId = task['taskId'];
+              final title = task['title'];
+              final taskType = task['taskType'];
+              final priority = task['priority'];
+              final isExpanded = expandedTasks[taskId] ?? false;
+              final color = _getCategoryColor(taskType);
+
+              return Padding(
+                padding: EdgeInsets.symmetric(vertical: screenHeight * 0.01),
+                child: GestureDetector(
+                  onLongPress: () => onLongPress(taskId),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [color.withOpacity(1.0), Colors.white],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    padding: EdgeInsets.all(screenWidth * 0.04),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        if (!isExpanded)
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontSize: screenWidth * 0.04,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                Text(
+                                  taskType,
+                                  style: TextStyle(
+                                    fontSize: screenWidth * 0.03,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              SizedBox(
+                                width: screenWidth * 0.55,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  textDirection: TextDirection.rtl,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.cancel, color: Colors.black87, size: screenWidth * 0.06),
+                                      onPressed: () {
+                                        setState(() {
+                                          expandedTasks[taskId] = false;
+                                        });
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.check, color: Colors.black87, size: screenWidth * 0.06),
+                                      onPressed: () {
+                                        _markAsDone(taskId);
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.delete, color: Colors.black87, size: screenWidth * 0.06),
+                                      onPressed: () {
+                                        _deleteTask(taskId, taskType);
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.edit, color: Colors.black87, size: screenWidth * 0.06),
+                                      onPressed: () {
+                                        // Handle edit
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        if (!isExpanded)
+                          Text(
+                            priority,
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.04,
+                              fontWeight: FontWeight.bold,
+                              color: _getPriorityColor(priority),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (tasks.length < (tasks == _cachedTasks ? _cachedTasks.where((t) => !(t['completed'] as bool)).length : tasks.length))
+          TextButton(
+            onPressed: () {
+              setState(() {
+                visibleTaskCount += 10;
+              });
+            },
+            child: Text(
+              'Load More',
+              style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.blue),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
@@ -372,287 +565,156 @@ class _HomeScreenState extends State<HomeScreen> {
         task['title'].toLowerCase().contains(searchQuery.toLowerCase()))
         .toList();
 
-    filteredTasks.sort((a, b) =>
-        _priorityToInt(b['priority']).compareTo(_priorityToInt(a['priority'])));
+    final onGoingTasks = _cachedTasks
+        .where((task) =>
+    !(task['completed'] as bool) &&
+        task['title'].toLowerCase().contains(searchQuery.toLowerCase()))
+        .toList();
+
+    filteredTasks.sort((a, b) {
+      if (_todaySortOption == 'Sort by Name') {
+        return a['title'].toLowerCase().compareTo(b['title'].toLowerCase());
+      } else if (_todaySortOption == 'Sort by Date') {
+        final aDate = a['createdAt'] != '' ? DateTime.parse(a['createdAt']) : DateTime(0);
+        final bDate = b['createdAt'] != '' ? DateTime.parse(b['createdAt']) : DateTime(0);
+        return bDate.compareTo(aDate);
+      } else if (_todaySortOption == 'Sort by Type') {
+        return _typeToInt(a['taskType']).compareTo(_typeToInt(b['taskType']));
+      } else {
+        return _priorityToInt(b['priority']).compareTo(_priorityToInt(a['priority']));
+      }
+    });
+
+    onGoingTasks.sort((a, b) {
+      if (_onGoingSortOption == 'Sort by Name') {
+        return a['title'].toLowerCase().compareTo(b['title'].toLowerCase());
+      } else if (_onGoingSortOption == 'Sort by Date') {
+        final aDate = a['createdAt'] != '' ? DateTime.parse(a['createdAt']) : DateTime(0);
+        final bDate = b['createdAt'] != '' ? DateTime.parse(b['createdAt']) : DateTime(0);
+        return bDate.compareTo(aDate);
+      } else if (_onGoingSortOption == 'Sort by Type') {
+        return _typeToInt(a['taskType']).compareTo(_typeToInt(b['taskType']));
+      } else {
+        return _priorityToInt(b['priority']).compareTo(_priorityToInt(a['priority']));
+      }
+    });
 
     final visibleTasks = filteredTasks.take(visibleTaskCount).toList();
+    final visibleOnGoingTasks = onGoingTasks.take(visibleTaskCount).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFf2faff),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(screenWidth * 0.05),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Hi $userName",
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.1,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.notifications_none, size: screenWidth * 0.06, color: Colors.black87),
-                        onPressed: () {
-                          // Handle notification click
-                        },
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          // Open profile/logout window
-                        },
-                        child: ProfileIconSettings(
-                          profileImage: _profileImage,
-                          userName: userName,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: screenHeight * 0.030),
-                  Text(
-                    "Welcome to Bracelyte, here's your task summary",
-                    style: TextStyle(
-                      fontSize: screenWidth * 0.035,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: screenHeight * 0.03),
-
-              Text(
-                "CATEGORY",
-                style: TextStyle(
-                  fontSize: screenWidth * 0.04,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              SizedBox(height: screenHeight * 0.02),
-              SizedBox(
-                height: screenHeight * 0.16,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: tools.length,
-                  itemBuilder: (context, index) {
-                    final tool = tools[index];
-                    final color = _getCategoryColor(tool);
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TaskViewer(category: tool),
-                          ),
-                        );
-                      },
-                      child: Padding(
-                        padding: EdgeInsets.only(right: screenWidth * 0.03),
-                        child: Container(
-                          width: screenWidth * 0.35,
-                          padding: EdgeInsets.all(screenWidth * 0.05),
-                          decoration: BoxDecoration(
-                            color: color,
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                tool,
-                                style: TextStyle(
-                                  fontSize: screenWidth * 0.05,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black.withOpacity(0.6),
-                                ),
-                              ),
-                              SizedBox(height: screenHeight * 0.01),
-                              Text(
-                                "${_toolTaskCounts[tool] ?? 0} tasks",
-                                style: TextStyle(
-                                  fontSize: screenWidth * 0.04,
-                                  color: Colors.black45,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              SizedBox(height: screenHeight * 0.03),
-
-              Text(
-                "TODAY'S TASKS",
-                style: TextStyle(
-                  fontSize: screenWidth * 0.04,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              SizedBox(height: screenHeight * 0.02),
-
-              _buildSearchBar(_cachedTasks.isNotEmpty),
-              SizedBox(height: screenHeight * 0.02),
-
-              if (visibleTasks.isEmpty && _cachedTasks.isNotEmpty)
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: screenHeight * 0.05),
-                  child: Center(
-                    child: Text(
-                      'No tasks found',
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.04,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ),
-                )
-              else if (_cachedTasks.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: screenHeight * 0.05),
-                    child: Text(
-                      'No specific task today',
-                      style: TextStyle(
-                        fontSize: screenWidth * 0.04,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ),
-                )
-              else
-                Column(
+              Padding(
+                padding: EdgeInsets.all(screenWidth * 0.05),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      height: screenHeight * 0.4,
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: visibleTasks.length,
-                        itemBuilder: (context, index) {
-                          final task = visibleTasks[index];
-                          final taskId = task['taskId'];
-                          final title = task['title'];
-                          final taskType = task['taskType'];
-                          final priority = task['priority'];
-                          final isExpanded = _expandedTasks[taskId] ?? false;
-                          final color = _getCategoryColor(taskType);
-
-                          return Padding(
-                            padding: EdgeInsets.symmetric(vertical: screenHeight * 0.01),
-                            child: GestureDetector(
-                              onLongPress: () {
-                                setState(() {
-                                  _expandedTasks[taskId] = !(_expandedTasks[taskId] ?? false);
-                                });
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Hi $userName",
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.1,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.notifications_none, size: screenWidth * 0.06, color: Colors.black87),
+                              onPressed: () {
+                                // Handle notification click
                               },
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [color.withOpacity(1.0), Colors.white],
-                                    begin: Alignment.centerLeft,
-                                    end: Alignment.centerRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(10),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black26,
-                                      blurRadius: 4,
-                                      offset: Offset(0, 2),
-                                    ),
-                                  ],
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                // Open profile/logout window
+                              },
+                              child: ProfileIconSettings(
+                                profileImage: _profileImage,
+                                userName: userName,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: screenHeight * 0.030),
+                        Text(
+                          "Welcome to Bracelyte! Your personalized task summary is here—let’s make today count",
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.04,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: screenHeight * 0.03),
+                    Text(
+                      "CATEGORY",
+                      style: TextStyle(
+                        fontSize: screenWidth * 0.04,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    SizedBox(height: screenHeight * 0.02),
+                    SizedBox(
+                      height: screenHeight * 0.16,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: tools.length,
+                        itemBuilder: (context, index) {
+                          final tool = tools[index];
+                          final color = _getCategoryColor(tool);
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TaskViewer(category: tool),
                                 ),
-                                padding: EdgeInsets.all(screenWidth * 0.04),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              );
+                            },
+                            child: Padding(
+                              padding: EdgeInsets.only(right: screenWidth * 0.03),
+                              child: Container(
+                                width: screenWidth * 0.35,
+                                padding: EdgeInsets.all(screenWidth * 0.05),
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    if (!isExpanded)
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              title,
-                                              style: TextStyle(
-                                                fontSize: screenWidth * 0.04,
-                                                color: Colors.black87,
-                                              ),
-                                            ),
-                                            Text(
-                                              taskType,
-                                              style: TextStyle(
-                                                fontSize: screenWidth * 0.03,
-                                                color: Colors.grey.shade600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      )
-                                    else
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.end,
-                                        children: [
-                                          SizedBox(
-                                            width: screenWidth * 0.55,
-                                            child: Row(
-                                              mainAxisAlignment: MainAxisAlignment.end,
-                                              textDirection: TextDirection.rtl,
-                                              children: [
-                                                IconButton(
-                                                  icon: Icon(Icons.cancel, color: Colors.black87, size: screenWidth * 0.06),
-                                                  onPressed: () {
-                                                    setState(() {
-                                                      _expandedTasks[taskId] = false;
-                                                    });
-                                                  },
-                                                ),
-                                                IconButton(
-                                                  icon: Icon(Icons.check, color: Colors.black87, size: screenWidth * 0.06),
-                                                  onPressed: () {
-                                                    _markAsDone(taskId);
-                                                  },
-                                                ),
-                                                IconButton(
-                                                  icon: Icon(Icons.delete, color: Colors.black87, size: screenWidth * 0.06),
-                                                  onPressed: () {
-                                                    _deleteTask(taskId, taskType);
-                                                  },
-                                                ),
-                                                IconButton(
-                                                  icon: Icon(Icons.edit, color: Colors.black87, size: screenWidth * 0.06),
-                                                  onPressed: () {
-                                                    // Handle edit
-                                                  },
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
+                                    Text(
+                                      tool,
+                                      style: TextStyle(
+                                        fontSize: screenWidth * 0.05,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black.withOpacity(0.6),
                                       ),
-                                    if (!isExpanded)
-                                      Text(
-                                        priority,
-                                        style: TextStyle(
-                                          fontSize: screenWidth * 0.04,
-                                          fontWeight: FontWeight.bold,
-                                          color: _getPriorityColor(priority),
-                                        ),
+                                    ),
+                                    SizedBox(height: screenHeight * 0.01),
+                                    Text(
+                                      "${_toolTaskCounts[tool] ?? 0} tasks",
+                                      style: TextStyle(
+                                        fontSize: screenWidth * 0.04,
+                                        color: Colors.black45,
                                       ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -661,25 +723,127 @@ class _HomeScreenState extends State<HomeScreen> {
                         },
                       ),
                     ),
-                    if (visibleTasks.length < filteredTasks.length)
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            visibleTaskCount += 10;
-                          });
-                        },
-                        child: Text(
-                          'Load More',
-                          style: TextStyle(fontSize: screenWidth * 0.04, color: Colors.blue),
+                    SizedBox(height: screenHeight * 0.03),
+                    _buildSearchBar(_cachedTasks.isNotEmpty),
+                    SizedBox(height: screenHeight * 0.02),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "TODAY'S TASKS",
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.04,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
-                      ),
+                        DropdownButton<String>(
+                          value: _todaySortOption,
+                          style: TextStyle(color: Colors.black87, fontSize: screenWidth * 0.035),
+                          //dropdownColor: Colors.grey.shade800,
+                          items: ['Sort by Name', 'Sort by Date', 'Sort by Type', 'Sort by Priority']
+                              .map((String value) => DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(
+                              value,
+                              style: TextStyle(color: Colors.black87, fontSize: screenWidth * 0.035),
+                            ),
+                          ))
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _todaySortOption = value;
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: screenHeight * 0.02),
+                    _buildTaskList(
+                      tasks: visibleTasks,
+                      screenHeight: screenHeight,
+                      screenWidth: screenWidth,
+                      expandedTasks: _todayExpandedTasks,
+                      onLongPress: (taskId) {
+                        setState(() {
+                          _todayExpandedTasks[taskId] = !(_todayExpandedTasks[taskId] ?? false);
+                        });
+                      },
+                    ),
+                    SizedBox(height: screenHeight * 0.03),
                   ],
                 ),
+              ),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFcce6ff),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(30),
+                    topRight: Radius.circular(30),
+                  ),
+                ),
+
+                padding: EdgeInsets.all(screenWidth * 0.05),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "ON GOING TASKS",
+                          style: TextStyle(
+                            fontSize: screenWidth * 0.04,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        DropdownButton<String>(
+                          value: _onGoingSortOption,
+                          style: TextStyle(color: Colors.black87, fontSize: screenWidth * 0.035),
+                          //dropdownColor: Colors.grey.shade800,
+                          items: ['Sort by Name', 'Sort by Date', 'Sort by Type', 'Sort by Priority']
+                              .map((String value) => DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(
+                              value,
+                              style: TextStyle(color: Colors.black87, fontSize: screenWidth * 0.035),
+                            ),
+                          ))
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _onGoingSortOption = value;
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: screenHeight * 0.02),
+                    _buildTaskList(
+                      tasks: visibleOnGoingTasks,
+                      screenHeight: screenHeight,
+                      screenWidth: screenWidth,
+                      expandedTasks: _onGoingExpandedTasks,
+                      onLongPress: (taskId) {
+                        setState(() {
+                          _onGoingExpandedTasks[taskId] = !(_onGoingExpandedTasks[taskId] ?? false);
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final result = await showModalBottomSheet(
             context: context,
@@ -697,8 +861,16 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         },
         backgroundColor: const Color(0xFF00BFFF),
-        child: const Icon(Icons.add, color: Colors.white),
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: Text(
+          'Create Task',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: MediaQuery.of(context).size.width * 0.03,
+          ),
+        ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }
