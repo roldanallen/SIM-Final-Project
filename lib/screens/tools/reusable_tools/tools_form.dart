@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:software_development/widgets/reusable_tools.dart';
 import 'package:software_development/utils/error_handler.dart';
 import 'package:software_development/screens/tools/todo_tools/todo_selection.dart';
-import 'package:software_development/screens/tools/workout_tools/workout_selection.dart';// Assumed import
+import 'package:software_development/screens/tools/workout_tools/workout_selection.dart';
 
 class ToolsForm extends StatefulWidget {
   final String toolType;
@@ -14,7 +14,10 @@ class ToolsForm extends StatefulWidget {
   final String collectionPath;
   final Map<String, dynamic> additionalData;
   final bool requireSteps;
-  final String parentType; // New parameter for parent screen navigation
+  final String parentType;
+  final List<Map<String, String>>? prebuiltSteps;
+  final bool includeSaveButton;
+  final VoidCallback? onFormChanged;
 
   const ToolsForm({
     super.key,
@@ -26,15 +29,19 @@ class ToolsForm extends StatefulWidget {
     this.additionalData = const {},
     this.requireSteps = true,
     required this.parentType,
+    this.prebuiltSteps,
+    this.includeSaveButton = true,
+    this.onFormChanged,
   });
 
   @override
-  State<ToolsForm> createState() => _ToolsFormState();
+  State<ToolsForm> createState() => ToolsFormState();
 }
 
-class _ToolsFormState extends State<ToolsForm> {
+class ToolsFormState extends State<ToolsForm> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
+  final GlobalKey<ToolsFormState> _formKey = GlobalKey<ToolsFormState>();
 
   DateTime? _startDate;
   DateTime? _endDate;
@@ -49,6 +56,27 @@ class _ToolsFormState extends State<ToolsForm> {
 
   List<String> steps = [];
 
+  @override
+  void initState() {
+    super.initState();
+    // Add listeners to text controllers to trigger onFormChanged
+    _titleController.addListener(_handleFormChanged);
+    _descController.addListener(_handleFormChanged);
+  }
+
+  @override
+  void dispose() {
+    _titleController.removeListener(_handleFormChanged);
+    _descController.removeListener(_handleFormChanged);
+    _titleController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  void _handleFormChanged() {
+    widget.onFormChanged?.call();
+  }
+
   Future<void> _selectDate(bool isStart) async {
     final picked = await showDatePicker(
       context: context,
@@ -59,6 +87,7 @@ class _ToolsFormState extends State<ToolsForm> {
     if (picked != null) {
       setState(() {
         isStart ? _startDate = picked : _endDate = picked;
+        _handleFormChanged();
       });
     }
   }
@@ -66,18 +95,21 @@ class _ToolsFormState extends State<ToolsForm> {
   void _addStep(String step) {
     setState(() {
       steps.add(step);
+      _handleFormChanged();
     });
   }
 
   void _deleteStep(int index) {
     setState(() {
       steps.removeAt(index);
+      _handleFormChanged();
     });
   }
 
   void _editStep(int index, String newText) {
     setState(() {
       steps[index] = newText;
+      _handleFormChanged();
     });
   }
 
@@ -86,6 +118,7 @@ class _ToolsFormState extends State<ToolsForm> {
       if (oldIndex < newIndex) newIndex--;
       final step = steps.removeAt(oldIndex);
       steps.insert(newIndex, step);
+      _handleFormChanged();
     });
   }
 
@@ -103,6 +136,10 @@ class _ToolsFormState extends State<ToolsForm> {
     if (!_isSaveEnabled()) return;
     _saveTask();
   }
+
+  // Public methods for external access
+  void save() => _handleSave();
+  bool isSaveEnabled() => _isSaveEnabled();
 
   void _saveTask() async {
     final title = _titleController.text.trim();
@@ -160,6 +197,8 @@ class _ToolsFormState extends State<ToolsForm> {
       'description': desc,
       'steps': widget.requireSteps ? steps : [],
       'createdAt': FieldValue.serverTimestamp(),
+      if (widget.collectionPath == 'workout' && widget.prebuiltSteps != null)
+        'prebuiltSteps': widget.prebuiltSteps,
       ...widget.additionalData,
     };
 
@@ -196,12 +235,13 @@ class _ToolsFormState extends State<ToolsForm> {
         _priorityError = null;
         _statusError = null;
         _descError = null;
+        _handleFormChanged();
       });
 
       // Navigate to parent selection screen after save
       if (mounted) {
-        await Future.delayed(const Duration(milliseconds: 100)); // Ensure Firestore write completes
-        Navigator.pop(context); // Pop the current ToolsForm screen
+        await Future.delayed(const Duration(milliseconds: 100));
+        Navigator.pop(context);
         if (widget.parentType == 'todo') {
           Navigator.pushReplacement(
             context,
@@ -224,11 +264,10 @@ class _ToolsFormState extends State<ToolsForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Create ${widget.titleLabel}')),
-      backgroundColor: const Color(0xFFF0F6F9),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Form(
+        key: _formKey,
         child: Column(
           children: [
             Column(
@@ -263,8 +302,14 @@ class _ToolsFormState extends State<ToolsForm> {
                 DropdownInputRow(
                   priority: _priority,
                   status: _status,
-                  onPriorityChanged: (v) => setState(() => _priority = v),
-                  onStatusChanged: (v) => setState(() => _status = v),
+                  onPriorityChanged: (v) => setState(() {
+                    _priority = v;
+                    _handleFormChanged();
+                  }),
+                  onStatusChanged: (v) => setState(() {
+                    _status = v;
+                    _handleFormChanged();
+                  }),
                   priorityOptions: widget.priorityOptions,
                   statusOptions: widget.statusOptions,
                 ),
@@ -293,11 +338,13 @@ class _ToolsFormState extends State<ToolsForm> {
                 onEditStep: _editStep,
                 onReorderSteps: _reorderSteps,
               ),
-            const SizedBox(height: 20),
-            SaveButton(
-              onPressed: _handleSave,
-              isEnabled: _isSaveEnabled(),
-            ),
+            if (widget.includeSaveButton) ...[
+              const SizedBox(height: 20),
+              SaveButton(
+                onPressed: _handleSave,
+                isEnabled: _isSaveEnabled(),
+              ),
+            ],
           ],
         ),
       ),
@@ -305,7 +352,6 @@ class _ToolsFormState extends State<ToolsForm> {
   }
 }
 
-// StepList widget (unchanged)
 class StepList extends StatelessWidget {
   final List<String> steps;
   final void Function(String) onAddStep;

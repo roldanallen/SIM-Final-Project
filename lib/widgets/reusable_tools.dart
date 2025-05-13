@@ -133,7 +133,7 @@ class DropdownInputRow extends StatelessWidget {
             child: DropdownButtonFormField<String>(
               value: priority,
               decoration: const InputDecoration(
-                hintText: 'Select priority',
+                hintText: 'Select',
                 border: InputBorder.none,
               ),
               items: priorityOptions
@@ -151,7 +151,7 @@ class DropdownInputRow extends StatelessWidget {
             child: DropdownButtonFormField<String>(
               value: status,
               decoration: const InputDecoration(
-                hintText: 'Select status',
+                hintText: 'Select',
                 border: InputBorder.none,
               ),
               items: statusOptions

@@ -559,12 +559,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final tools = ['To-do', 'Workout', 'Water Reminder', 'Diet', 'Custom Plan'];
 
+    // Get today's date in YYYY-MM-DD format
+    final today = DateTime.now();
+    final todayString = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+
+    // Filter tasks for today (createdAt date matches today) and apply search query
     final filteredTasks = _cachedTasks
         .where((task) =>
     !(task['completed'] as bool) &&
-        task['title'].toLowerCase().contains(searchQuery.toLowerCase()))
+        task['title'].toLowerCase().contains(searchQuery.toLowerCase()) &&
+        task['createdAt'].startsWith(todayString))
         .toList();
 
+    // Filter ongoing tasks (all incomplete tasks) and apply search query
     final onGoingTasks = _cachedTasks
         .where((task) =>
     !(task['completed'] as bool) &&
@@ -740,7 +747,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         DropdownButton<String>(
                           value: _todaySortOption,
                           style: TextStyle(color: Colors.black87, fontSize: screenWidth * 0.035),
-                          //dropdownColor: Colors.grey.shade800,
                           items: ['Sort by Name', 'Sort by Date', 'Sort by Type', 'Sort by Priority']
                               .map((String value) => DropdownMenuItem<String>(
                             value: value,
@@ -785,7 +791,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     topRight: Radius.circular(30),
                   ),
                 ),
-
                 padding: EdgeInsets.all(screenWidth * 0.05),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -804,7 +809,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         DropdownButton<String>(
                           value: _onGoingSortOption,
                           style: TextStyle(color: Colors.black87, fontSize: screenWidth * 0.035),
-                          //dropdownColor: Colors.grey.shade800,
                           items: ['Sort by Name', 'Sort by Date', 'Sort by Type', 'Sort by Priority']
                               .map((String value) => DropdownMenuItem<String>(
                             value: value,

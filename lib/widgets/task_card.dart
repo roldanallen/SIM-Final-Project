@@ -10,6 +10,7 @@ class TaskTypeCard extends StatelessWidget {
   final String? calories;
   final VoidCallback? onTap;
   final bool enabled;
+  final double imageSize; // New parameter for image size
 
   const TaskTypeCard({
     super.key,
@@ -22,6 +23,7 @@ class TaskTypeCard extends StatelessWidget {
     this.calories,
     required this.onTap,
     this.enabled = true,
+    this.imageSize = 60, // Default to 60px for other pages
   });
 
   Color _hexToColor(String hex) {
@@ -34,25 +36,27 @@ class TaskTypeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final color1 = _hexToColor(hexColor1);
     final color2 = _hexToColor(hexColor2);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final scaleFactor = screenWidth < 360 ? 0.9 : 1.0; // Scaling for small screens
 
     return GestureDetector(
       onTap: enabled ? onTap : null,
       child: Container(
         width: double.infinity,
-        margin: const EdgeInsets.symmetric(vertical: 10),
-        padding: const EdgeInsets.all(16),
+        margin: EdgeInsets.symmetric(vertical: 8 * scaleFactor),
+        padding: EdgeInsets.all(12 * scaleFactor),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: enabled ? [color1, color2] : [Colors.grey, Colors.grey],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(12 * scaleFactor),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.2),
-              blurRadius: 4,
-              offset: const Offset(0, 4),
+              blurRadius: 4 * scaleFactor,
+              offset: Offset(0, 2 * scaleFactor),
             ),
           ],
         ),
@@ -65,46 +69,46 @@ class TaskTypeCard extends StatelessWidget {
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 16 * scaleFactor,
                       fontWeight: FontWeight.bold,
                       color: enabled ? Colors.black54 : Colors.black38,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4 * scaleFactor),
                   Text(
                     subtext,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 14 * scaleFactor,
                       color: enabled ? Colors.black87 : Colors.black38,
                     ),
                   ),
                   if (duration != null || calories != null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 6),
+                      padding: EdgeInsets.only(top: 6 * scaleFactor),
                       child: Row(
                         children: [
                           if (duration != null)
                             Text(
                               duration!,
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 12 * scaleFactor,
                                 color: enabled ? Colors.grey : Colors.black38,
                               ),
                             ),
-                          if (duration != null && calories != null) const SizedBox(width: 8),
+                          if (duration != null && calories != null) SizedBox(width: 8 * scaleFactor),
                           if (calories != null)
                             Row(
                               children: [
                                 Icon(
                                   Icons.local_fire_department,
-                                  size: 14,
+                                  size: 14 * scaleFactor,
                                   color: enabled ? Colors.grey : Colors.black38,
                                 ),
-                                const SizedBox(width: 4),
+                                SizedBox(width: 4 * scaleFactor),
                                 Text(
                                   calories!,
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: 12 * scaleFactor,
                                     color: enabled ? Colors.grey : Colors.black38,
                                   ),
                                 ),
@@ -116,13 +120,13 @@ class TaskTypeCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 16),
+            SizedBox(width: 12 * scaleFactor),
             Opacity(
               opacity: enabled ? 0.7 : 0.3,
               child: Image.asset(
                 imagePath,
-                width: 60, // Larger image to match the UI
-                height: 60,
+                width: imageSize * scaleFactor,
+                height: imageSize * scaleFactor,
                 fit: BoxFit.cover,
                 color: enabled ? null : Colors.black38,
               ),
