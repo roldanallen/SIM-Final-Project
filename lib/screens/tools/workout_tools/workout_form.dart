@@ -4,8 +4,17 @@ import 'package:software_development/widgets/reusable_tools.dart';
 
 class WorkoutToolPage extends StatefulWidget {
   final String taskType;
+  final String? taskId; // Added for editing
+  final String? initialTitle; // Added for editing
+  final String? initialPriority; // Added for editing
 
-  const WorkoutToolPage({super.key, required this.taskType});
+  const WorkoutToolPage({
+    super.key,
+    required this.taskType,
+    this.taskId,
+    this.initialTitle,
+    this.initialPriority,
+  });
 
   @override
   _WorkoutToolPageState createState() => _WorkoutToolPageState();
@@ -64,18 +73,18 @@ class _WorkoutToolPageState extends State<WorkoutToolPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FF),
       appBar: AppBar(
-        title: Text(_getTitleLabel(widget.taskType)),
+        title: Text(widget.taskId != null ? 'Edit ${_getTitleLabel(widget.taskType)}' : _getTitleLabel(widget.taskType)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.black,
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(screenWidth * 0.04 * scaleFactor),
+        padding: EdgeInsets.fromLTRB(screenWidth * 0.03, 0, screenWidth * 0.01, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Create Workout Plan',
+              widget.taskId != null ? 'Edit Workout Plan' : 'Create Workout Plan',
               style: TextStyle(
                 fontSize: screenWidth * 0.05 * scaleFactor,
                 fontWeight: FontWeight.bold,
@@ -102,6 +111,9 @@ class _WorkoutToolPageState extends State<WorkoutToolPage> {
             // Reusable ToolsForm content without SaveButton
             ToolsForm(
               key: _formKey,
+              taskId: widget.taskId,
+              initialTitle: widget.initialTitle,
+              initialPriority: widget.initialPriority,
               toolType: widget.taskType,
               titleLabel: _getTitleLabel(widget.taskType),
               priorityOptions: ['Low', 'Medium', 'High'],

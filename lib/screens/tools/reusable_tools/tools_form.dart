@@ -18,6 +18,9 @@ class ToolsForm extends StatefulWidget {
   final List<Map<String, String>>? prebuiltSteps;
   final bool includeSaveButton;
   final VoidCallback? onFormChanged;
+  final String? taskId;
+  final String? initialTitle;
+  final String? initialPriority;
 
   const ToolsForm({
     super.key,
@@ -32,6 +35,9 @@ class ToolsForm extends StatefulWidget {
     this.prebuiltSteps,
     this.includeSaveButton = true,
     this.onFormChanged,
+    this.taskId,
+    this.initialTitle,
+    this.initialPriority,
   });
 
   @override
@@ -55,13 +61,50 @@ class ToolsFormState extends State<ToolsForm> {
   String? _descError;
 
   List<String> steps = [];
+  bool _isFormChanged = false;
 
   @override
   void initState() {
     super.initState();
-    // Add listeners to text controllers to trigger onFormChanged
+    if (widget.taskId != null) {
+      _titleController.text = widget.initialTitle ?? '';
+      _priority = widget.initialPriority;
+      _fetchTaskData();
+    }
     _titleController.addListener(_handleFormChanged);
     _descController.addListener(_handleFormChanged);
+  }
+
+  Future<void> _fetchTaskData() async {
+    if (widget.taskId == null) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final taskSnap = await FirebaseFirestore.instance
+          .collection('userData')
+          .doc(uid)
+          .collection('tools')
+          .doc(widget.collectionPath)
+          .collection('tasks')
+          .doc(widget.taskId)
+          .get();
+      if (taskSnap.exists) {
+        final data = taskSnap.data()!;
+        setState(() {
+          _startDate = data['startDate'] != null ? DateTime.parse(data['startDate']) : null;
+          _endDate = data['endDate'] != null ? DateTime.parse(data['endDate']) : null;
+          _status = data['status'];
+          _descController.text = data['description'] ?? '';
+          steps = List<String>.from(data['steps'] ?? []);
+          _handleFormChanged();
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load task data: $e')),
+      );
+    }
   }
 
   @override
@@ -74,6 +117,15 @@ class ToolsFormState extends State<ToolsForm> {
   }
 
   void _handleFormChanged() {
+    setState(() {
+      _isFormChanged = _titleController.text.isNotEmpty ||
+          _descController.text.isNotEmpty ||
+          _startDate != null ||
+          _endDate != null ||
+          _priority != null ||
+          _status != null ||
+          steps.isNotEmpty;
+    });
     widget.onFormChanged?.call();
   }
 
@@ -137,7 +189,6 @@ class ToolsFormState extends State<ToolsForm> {
     _saveTask();
   }
 
-  // Public methods for external access
   void save() => _handleSave();
   bool isSaveEnabled() => _isSaveEnabled();
 
@@ -196,7 +247,8 @@ class ToolsFormState extends State<ToolsForm> {
       'status': _status,
       'description': desc,
       'steps': widget.requireSteps ? steps : [],
-      'createdAt': FieldValue.serverTimestamp(),
+      // Only set createdAt when creating a new task
+      if (widget.taskId == null) 'createdAt': FieldValue.serverTimestamp(),
       if (widget.collectionPath == 'workout' && widget.prebuiltSteps != null)
         'prebuiltSteps': widget.prebuiltSteps,
       ...widget.additionalData,
@@ -206,21 +258,33 @@ class ToolsFormState extends State<ToolsForm> {
         'collectionPath: ${widget.collectionPath}, data: $toolData');
 
     try {
-      final docRef = await FirebaseFirestore.instance
-          .collection('userData')
-          .doc(uid)
-          .collection('tools')
-          .doc(widget.collectionPath)
-          .collection('tasks')
-          .add(toolData);
+      if (widget.taskId != null) {
+        await FirebaseFirestore.instance
+            .collection('userData')
+            .doc(uid)
+            .collection('tools')
+            .doc(widget.collectionPath)
+            .collection('tasks')
+            .doc(widget.taskId)
+            .update(toolData);
+        print('Task updated successfully with ID: ${widget.taskId}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${widget.titleLabel} updated in database!')),
+        );
+      } else {
+        final docRef = await FirebaseFirestore.instance
+            .collection('userData')
+            .doc(uid)
+            .collection('tools')
+            .doc(widget.collectionPath)
+            .collection('tasks')
+            .add(toolData);
+        print('Task saved successfully with ID: ${docRef.id}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${widget.titleLabel} saved to database!')),
+        );
+      }
 
-      print('Task saved successfully with ID: ${docRef.id}');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${widget.titleLabel} saved to database!')),
-      );
-
-      // Reset form
       setState(() {
         _titleController.clear();
         _descController.clear();
@@ -235,23 +299,25 @@ class ToolsFormState extends State<ToolsForm> {
         _priorityError = null;
         _statusError = null;
         _descError = null;
+        _isFormChanged = false;
         _handleFormChanged();
       });
 
-      // Navigate to parent selection screen after save
       if (mounted) {
         await Future.delayed(const Duration(milliseconds: 100));
         Navigator.pop(context);
-        if (widget.parentType == 'todo') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const ToDoTypeSelectionScreen()),
-          );
-        } else if (widget.parentType == 'workout') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const WorkoutSelectionScreen()),
-          );
+        if (widget.taskId == null) {
+          if (widget.parentType == 'todo') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ToDoTypeSelectionScreen()),
+            );
+          } else if (widget.parentType == 'workout') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const WorkoutSelectionScreen()),
+            );
+          }
         }
       }
     } catch (e) {
@@ -262,90 +328,119 @@ class ToolsFormState extends State<ToolsForm> {
     }
   }
 
+  Future<bool> _onWillPop() async {
+    if (_isFormChanged) {
+      return await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Discard changes?'),
+          content: const Text('Are you sure you want to leave? You have unsaved changes.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(true);
+                setState(() => _isFormChanged = false);
+              },
+              child: const Text('Leave'),
+            ),
+          ],
+        ),
+      ) ?? false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TaskTitleInput(controller: _titleController),
-                ErrorHandler.displayError(_titleError),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DateInputRow(
-                  startDate: _startDate,
-                  endDate: _endDate,
-                  onStartTap: () => _selectDate(true),
-                  onEndTap: () => _selectDate(false),
-                ),
-                if (_startDateError != null || _endDateError != null)
-                  Row(
-                    children: [
-                      Expanded(child: ErrorHandler.displayError(_startDateError)),
-                      const SizedBox(width: 16),
-                      Expanded(child: ErrorHandler.displayError(_endDateError)),
-                    ],
-                  ),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DropdownInputRow(
-                  priority: _priority,
-                  status: _status,
-                  onPriorityChanged: (v) => setState(() {
-                    _priority = v;
-                    _handleFormChanged();
-                  }),
-                  onStatusChanged: (v) => setState(() {
-                    _status = v;
-                    _handleFormChanged();
-                  }),
-                  priorityOptions: widget.priorityOptions,
-                  statusOptions: widget.statusOptions,
-                ),
-                if (_priorityError != null || _statusError != null)
-                  Row(
-                    children: [
-                      Expanded(child: ErrorHandler.displayError(_priorityError)),
-                      const SizedBox(width: 16),
-                      Expanded(child: ErrorHandler.displayError(_statusError)),
-                    ],
-                  ),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DescriptionField(controller: _descController),
-                ErrorHandler.displayError(_descError),
-              ],
-            ),
-            if (widget.requireSteps)
-              StepList(
-                steps: steps,
-                onAddStep: _addStep,
-                onDeleteStep: _deleteStep,
-                onEditStep: _editStep,
-                onReorderSteps: _reorderSteps,
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TaskTitleInput(controller: _titleController),
+                  ErrorHandler.displayError(_titleError),
+                ],
               ),
-            if (widget.includeSaveButton) ...[
-              const SizedBox(height: 20),
-              SaveButton(
-                onPressed: _handleSave,
-                isEnabled: _isSaveEnabled(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DateInputRow(
+                    startDate: _startDate,
+                    endDate: _endDate,
+                    onStartTap: () => _selectDate(true),
+                    onEndTap: () => _selectDate(false),
+                  ),
+                  if (_startDateError != null || _endDateError != null)
+                    Row(
+                      children: [
+                        Expanded(child: ErrorHandler.displayError(_startDateError)),
+                        const SizedBox(width: 16),
+                        Expanded(child: ErrorHandler.displayError(_endDateError)),
+                      ],
+                    ),
+                ],
               ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownInputRow(
+                    priority: _priority,
+                    status: _status,
+                    onPriorityChanged: (v) => setState(() {
+                      _priority = v;
+                      _handleFormChanged();
+                    }),
+                    onStatusChanged: (v) => setState(() {
+                      _status = v;
+                      _handleFormChanged();
+                    }),
+                    priorityOptions: widget.priorityOptions,
+                    statusOptions: widget.statusOptions,
+                  ),
+                  if (_priorityError != null || _statusError != null)
+                    Row(
+                      children: [
+                        Expanded(child: ErrorHandler.displayError(_priorityError)),
+                        const SizedBox(width: 16),
+                        Expanded(child: ErrorHandler.displayError(_statusError)),
+                      ],
+                    ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DescriptionField(controller: _descController),
+                  ErrorHandler.displayError(_descError),
+                ],
+              ),
+              if (widget.requireSteps)
+                StepList(
+                  steps: steps,
+                  onAddStep: _addStep,
+                  onDeleteStep: _deleteStep,
+                  onEditStep: _editStep,
+                  onReorderSteps: _reorderSteps,
+                ),
+              if (widget.includeSaveButton) ...[
+                const SizedBox(height: 20),
+                SaveButton(
+                  onPressed: _handleSave,
+                  isEnabled: _isSaveEnabled(),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

@@ -233,7 +233,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF0F6F9),
+        backgroundColor: const Color(0xFFF6F9FF),
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,

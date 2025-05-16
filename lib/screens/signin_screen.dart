@@ -1,10 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:software_development/screens/home/home_screen.dart';
+import 'package:software_development/screens/home/start_page_UI.dart';
 import 'signup_screen.dart';
 import 'package:software_development/widgets/reusable_widget.dart';
 import 'package:software_development/screens/main_navigation.dart';
 import 'package:software_development/screens/forgot_password_1.dart';
+import 'package:software_development/screens/home/welcome_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({Key? key}) : super(key: key);
@@ -42,16 +44,27 @@ class _SignInScreenState extends State<SignInScreen> {
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text("Successfully signed in."),
           backgroundColor: Colors.green,
         ),
       );
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => MainNavigationScreen()),
-      );
+      final prefs = await SharedPreferences.getInstance();
+      final userId = _auth.currentUser?.uid;
+      final hasSeenWelcome = userId != null ? prefs.getBool('hasSeenWelcome_$userId') ?? false : false;
+
+      if (hasSeenWelcome) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => MainNavigationScreen()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => WelcomeScreen()),
+        );
+      }
     } on FirebaseAuthException catch (e) {
       setState(() {
         isSubmitting = false;
@@ -76,102 +89,156 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final inputDecorationSpacing = SizedBox(height: 20);
-
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              hexStringToColor("CB2B93"),
-              hexStringToColor("9546C4"),
-              hexStringToColor("5E61F4")
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).size.height * 0.2, 20, 0),
-          child: Column(
-            children: [
-              logoWidget("assets/images/background01.png"),
-              SizedBox(height: 30),
-              reusableTextField(
-                "Enter Email",
-                Icons.email_outlined,
-                false,
-                _emailTextController,
-                errorText: emailError,
-              ),
-              inputDecorationSpacing,
-              reusableTextField(
-                "Enter Password",
-                Icons.lock_outline,
-                true,
-                _passwordTextController,
-                errorText: passwordError,
-              ),
-
-              // Forgot Password Button
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
+        color: Colors.white,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: MediaQuery.of(context).size.height * 0.01),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.arrow_back, color: Colors.black87),
                   onPressed: () {
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
+                      MaterialPageRoute(builder: (_) => const StartPage()),
                     );
                   },
-                  child: const Text(
-                    'Forgot Password?',
-                    style: TextStyle(
-                      color: Colors.blueAccent,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                  padding: EdgeInsets.zero,
+                  alignment: Alignment.centerLeft,
+                ),
+                SizedBox(height: MediaQuery.of(context).size.height * 0.07),
+                Text(
+                  "Bracelyte Sign In",
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Text(
+                  "You’re just one step away from greatness. Welcome back!",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                SizedBox(height: 30),
+                reusableTextField(
+                  "Enter email account",
+                  Icons.person_outline,
+                  false,
+                  _emailTextController,
+                  errorText: emailError,
+                ),
+                SizedBox(height: 20),
+                reusableTextField(
+                  "Enter Password",
+                  Icons.lock_outline,
+                  true,
+                  _passwordTextController,
+                  errorText: passwordError,
+                ),
+                SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
+                      );
+                    },
+                    child: Text(
+                      'Forgot Password?',
+                      style: TextStyle(
+                        color: Colors.blueAccent,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
-              ),
-
-              // Auth error message
-              if (authError != null) ...[
-                SizedBox(height: 10),
-                Text(authError!, style: TextStyle(color: Colors.redAccent)),
+                if (authError != null) ...[
+                  SizedBox(height: 10),
+                  Text(authError!, style: TextStyle(color: Colors.redAccent)),
+                ],
+                SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: Image.asset('assets/images/google.png', width: 40, height: 40),
+                      onPressed: () {},
+                    ),
+                    IconButton(
+                      icon: Image.asset('assets/images/facebook.png', width: 40, height: 40),
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+                SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(
+                        color: Colors.grey[400],
+                        thickness: 1,
+                      ),
+                    ),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 8),
+                      color: Colors.white,
+                      child: Text(
+                        'or',
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(
+                        color: Colors.grey[400],
+                        thickness: 1,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 20),
+                signInSignUpButton(context, true, signInUser),
+                SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Don't have an account? ",
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => SignUpScreen()),
+                        );
+                      },
+                      child: Text(
+                        "Register",
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
-
-              inputDecorationSpacing,
-              signInSignUpButton(context, true, signInUser),
-              signUpOption()
-            ],
+            ),
           ),
         ),
       ),
-    );
-  }
-
-
-  Row signUpOption() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text("Don't have an account?",
-            style: TextStyle(color: Colors.white70)),
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => SignUpScreen()),
-            );
-          },
-          child: const Text(
-            " Sign Up",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-        )
-      ],
     );
   }
 }

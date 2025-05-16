@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:country_picker/country_picker.dart';
+import 'package:software_development/screens/home/welcome_screen.dart';
+import 'package:software_development/screens/signin_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -232,14 +234,39 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  Future<void> _initializeToolsCollection(String userId) async {
+    final tools = ['todo', 'gym', 'waterreminder', 'workout', 'dietplan', 'customplan'];
+    final batch = FirebaseFirestore.instance.batch();
+
+    for (final tool in tools) {
+      final toolRef = FirebaseFirestore.instance
+          .collection('userData')
+          .doc(userId)
+          .collection('tools')
+          .doc(tool);
+      // Create a dummy document to initialize the collection
+      batch.set(toolRef, {'initialized': true});
+      // Create a dummy task to initialize the tasks subcollection
+      final taskRef = toolRef.collection('tasks').doc('init');
+      batch.set(taskRef, {'dummy': true});
+      // Delete the dummy task immediately to leave the subcollection empty but existing
+      batch.delete(taskRef);
+    }
+
+    await batch.commit();
+  }
+
   void _signUp() async {
     _validateStep2();
     if (!_areStep2FieldsFilled()) return;
 
     try {
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+
       final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+        email: email,
+        password: password,
       );
 
       final userId = userCredential.user?.uid;
@@ -250,17 +277,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
           'username': _usernameController.text.trim(),
           'birthdate': _dobController.text.trim(),
           'country': _selectedCountry,
-          'email': _emailController.text.trim(),
+          'email': email,
           'createdAt': FieldValue.serverTimestamp(),
+          'bio': "",
+          'gender': "Prefer not to say",
+          'uid': userId, // Added uid as a field
         };
 
         await FirebaseFirestore.instance.collection('userData').doc(userId).set(userData);
+
+        // Initialize the tools collection and its subcollections
+        await _initializeToolsCollection(userId);
+
+        // Sign the user in after account creation
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Account created successfully!')),
         );
 
-        Navigator.pushReplacementNamed(context, '/login');
+        // Navigate to WelcomeScreen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+        );
       }
     } on FirebaseAuthException catch (e) {
       String errorMessage = 'Failed to create account';
@@ -290,198 +333,249 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF6F9FF),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          foregroundColor: Colors.black,
-          title: const Text('Sign Up'),
-        ),
-        body: Column(
-          children: [
-            LinearProgressIndicator(
-              value: (_currentPage + 1) / 2,
-              backgroundColor: Colors.grey[300],
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
-              minHeight: 6,
-            ),
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: Colors.white,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: MediaQuery.of(context).size.height * 0.01,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                    onPressed: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SignInScreen()),
+                      );
+                    },
+                    padding: EdgeInsets.zero,
+                    alignment: Alignment.centerLeft,
+                  ),
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.02),
+                  const Text(
+                    'Bracelyte Sign Up',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'You’re one step away from managing your health and tasks. Let’s get started!',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.5,
+                    child: PageView(
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
                       children: [
-                        const Text(
-                          'Welcome to Bracelyte!',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Step 1: Enter your personal details',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black54,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildShadowField(
+                        SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildDatePicker(),
+                              const SizedBox(height: 20),
+                              _buildCountryPicker(),
+                              const SizedBox(height: 20),
+                              _buildShadowField(
                                 _firstNameController,
                                 'First Name',
                                 hintText: 'Enter Name',
                                 errorText: _firstNameError,
                                 field: 'firstName',
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildShadowField(
+                              const SizedBox(height: 20),
+                              _buildShadowField(
                                 _lastNameController,
                                 'Last Name',
                                 hintText: 'Enter Name',
                                 errorText: _lastNameError,
                                 field: 'lastName',
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        _buildShadowField(
-                          _usernameController,
-                          'Username',
-                          hintText: 'Enter username',
-                          errorText: _usernameError,
-                          field: 'username',
-                        ),
-                        const SizedBox(height: 20),
-                        _buildDatePicker(),
-                        const SizedBox(height: 20),
-                        _buildCountryPicker(),
-                        const SizedBox(height: 30),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _areStep1FieldsFilled() ? Colors.green : Colors.grey,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                              const SizedBox(height: 20),
+                              _buildShadowField(
+                                _usernameController,
+                                'Username',
+                                hintText: 'Enter username',
+                                errorText: _usernameError,
+                                field: 'username',
                               ),
-                            ),
-                            onPressed: _nextPage,
-                            child: const Text(
-                              'Next',
-                              style: TextStyle(fontSize: 18, color: Colors.white),
-                            ),
+                              const SizedBox(height: 20),
+                            ],
+                          ),
+                        ),
+                        SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildShadowField(
+                                _emailController,
+                                'Email Address',
+                                hintText: 'Enter email',
+                                errorText: _emailError,
+                                field: 'email',
+                              ),
+                              const SizedBox(height: 20),
+                              _buildShadowField(
+                                _passwordController,
+                                'Password',
+                                hintText: 'Enter password',
+                                isPassword: true,
+                                errorText: _passwordError,
+                                field: 'password',
+                              ),
+                              const SizedBox(height: 20),
+                              _buildShadowField(
+                                _confirmPasswordController,
+                                'Confirm Password',
+                                hintText: 'Re-enter password',
+                                isPassword: true,
+                                errorText: _confirmPasswordError,
+                                field: 'confirmPassword',
+                              ),
+                              const SizedBox(height: 20),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                  SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Step 2: Set up your account',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                          ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        icon: Image.asset('assets/images/google.png', width: 40, height: 40),
+                        onPressed: () {},
+                      ),
+                      IconButton(
+                        icon: Image.asset('assets/images/facebook.png', width: 40, height: 40),
+                        onPressed: () {},
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Divider(
+                          color: Colors.grey[400],
+                          thickness: 1,
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Enter your email and create a secure password',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black54,
-                          ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        color: Colors.white,
+                        child: Text(
+                          'or',
+                          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                         ),
-                        const SizedBox(height: 20),
-                        _buildShadowField(
-                          _emailController,
-                          'Email Address',
-                          hintText: 'Enter email',
-                          errorText: _emailError,
-                          field: 'email',
+                      ),
+                      Expanded(
+                        child: Divider(
+                          color: Colors.grey[400],
+                          thickness: 1,
                         ),
-                        const SizedBox(height: 20),
-                        _buildShadowField(
-                          _passwordController,
-                          'Password',
-                          hintText: 'Enter password',
-                          isPassword: true,
-                          errorText: _passwordError,
-                          field: 'password',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _currentPage == 0
+                      ? SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _areStep1FieldsFilled() ? Colors.green : Colors.grey,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        const SizedBox(height: 20),
-                        _buildShadowField(
-                          _confirmPasswordController,
-                          'Confirm Password',
-                          hintText: 'Re-enter password',
-                          isPassword: true,
-                          errorText: _confirmPasswordError,
-                          field: 'confirmPassword',
-                        ),
-                        const SizedBox(height: 30),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.grey,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                onPressed: _previousPage,
-                                child: const Text(
-                                  'Back',
-                                  style: TextStyle(fontSize: 18, color: Colors.white),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _areStep2FieldsFilled() ? Colors.green : Colors.grey,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                onPressed: _signUp,
-                                child: const Text(
-                                  'Create Account',
-                                  style: TextStyle(fontSize: 18, color: Colors.white),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
+                      onPressed: _nextPage,
+                      child: const Text(
+                        'Next',
+                        style: TextStyle(fontSize: 18, color: Colors.white),
+                      ),
                     ),
+                  )
+                      : Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.grey,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: _previousPage,
+                          child: const Text(
+                            'Back',
+                            style: TextStyle(fontSize: 18, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _areStep2FieldsFilled() ? Colors.green : Colors.grey,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: _signUp,
+                          child: const Text(
+                            'Create Account',
+                            style: TextStyle(fontSize: 18, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Already have an account? ',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(builder: (_) => const SignInScreen()),
+                          );
+                        },
+                        child: const Text(
+                          'Sign In',
+                          style: TextStyle(
+                            color: Colors.black87,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

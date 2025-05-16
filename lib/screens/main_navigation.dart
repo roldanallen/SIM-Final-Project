@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:software_development/screens/home/home_screen.dart';
 import 'package:software_development/screens/home/tools_screen.dart';
 import 'package:software_development/screens/home/profile_screen.dart';
-import 'package:software_development/screens/home/activity_screen.dart';
+import 'package:software_development/screens/home/browse_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   MainNavigationScreen({Key? key}) : super(key: _globalKey);
@@ -24,7 +24,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _pages = [
     const HomeScreen(key: ValueKey('home')),
     const ToolsScreen(key: ValueKey('tools')),
-    const ActivityPage(key: ValueKey('browse')),
+    const BrowsePage(key: ValueKey('browse')),
     const ProfileScreen(key: ValueKey('profile')),
   ];
 
@@ -50,7 +50,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.apps), label: 'Tools'),
+          BottomNavigationBarItem(icon: Icon(Icons.stacked_line_chart), label: 'Tools'),
           BottomNavigationBarItem(icon: Icon(Icons.interests), label: 'Browse'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],

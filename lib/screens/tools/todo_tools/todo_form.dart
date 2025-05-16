@@ -3,8 +3,17 @@ import 'package:software_development/screens/tools/reusable_tools/tools_form.dar
 
 class ToDoToolPage extends StatelessWidget {
   final String taskType;
+  final String? taskId; // Added for editing
+  final String? initialTitle; // Added for editing
+  final String? initialPriority; // Added for editing
 
-  const ToDoToolPage({super.key, required this.taskType});
+  const ToDoToolPage({
+    super.key,
+    required this.taskType,
+    this.taskId,
+    this.initialTitle,
+    this.initialPriority,
+  });
 
   String _getTitleLabel(String taskType) {
     switch (taskType.toLowerCase()) {
@@ -30,18 +39,18 @@ class ToDoToolPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FF),
       appBar: AppBar(
-        title: Text(_getTitleLabel(taskType)),
+        title: Text(taskId != null ? 'Edit ${_getTitleLabel(taskType)}' : _getTitleLabel(taskType)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Colors.black,
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(screenWidth * 0.04 * scaleFactor),
+        padding: EdgeInsets.fromLTRB(screenWidth * 0.03, 0, screenWidth * 0.01, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Create To-do List',
+              taskId != null ? 'Edit To-do List' : 'Create To-do List',
               style: TextStyle(
                 fontSize: screenWidth * 0.05 * scaleFactor,
                 fontWeight: FontWeight.bold,
@@ -59,6 +68,9 @@ class ToDoToolPage extends StatelessWidget {
             ),
             SizedBox(height: screenHeight * 0.02 * scaleFactor),
             ToolsForm(
+              taskId: taskId,
+              initialTitle: initialTitle,
+              initialPriority: initialPriority,
               toolType: taskType,
               titleLabel: _getTitleLabel(taskType),
               priorityOptions: ['Low', 'Medium', 'High'],

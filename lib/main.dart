@@ -1,8 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:software_development/screens/signin_screen.dart';
-import 'package:software_development/widgets/reusable_widget.dart';
+import 'package:software_development/screens/home/start_page_UI.dart';
+
 
 void main() async {
 
@@ -27,7 +27,7 @@ class MyApp extends StatelessWidget {
           scaffoldBackgroundColor: const Color(0xF0F6F9FF)
           //primarySwatch: Colors.blue,
         ),
-        home: const SignInScreen(),
+        home: const StartPage(),
     );
   }
 }

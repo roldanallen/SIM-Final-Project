@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:software_development/widgets/task_window.dart';
 import 'package:software_development/widgets/profile_icon_settings.dart';
 import 'package:software_development/screens/tools/reusable_tools/task_viewer.dart';
+import 'package:software_development/screens/tools/todo_tools/todo_form.dart';
+import 'package:software_development/screens/tools/workout_tools/workout_form.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
 
@@ -53,6 +55,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadCachedUserName();
     _loadCachedTasksAndCounts();
     _initConnectivity();
+    _fetchUserName();
+    _fetchTasks(); // Force fetch on init
   }
 
   @override
@@ -90,8 +94,17 @@ class _HomeScreenState extends State<HomeScreen> {
     if (cachedTasksJson != null && mounted) {
       final tasks = List<Map<String, dynamic>>.from(jsonDecode(cachedTasksJson));
       setState(() {
-        _cachedTasks = tasks;
-        _toolTaskCounts = _calculateToolTaskCounts(tasks);
+        _cachedTasks = tasks.map((task) {
+          return {
+            ...task,
+            'createdAt': task['createdAt'] is String
+                ? DateTime.parse(task['createdAt'])
+                : (task['createdAt'] is Timestamp
+                ? (task['createdAt'] as Timestamp).toDate()
+                : DateTime.now()),
+          };
+        }).toList();
+        _toolTaskCounts = _calculateToolTaskCounts(_cachedTasks);
         isLoading = false;
       });
     } else {
@@ -105,6 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
     for (var tool in tools) {
       counts[tool] = tasks.where((task) => task['taskType'] == tool).length;
     }
+    print('Tool counts: $counts'); // Debug log
     return counts;
   }
 
@@ -140,12 +154,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final tasks = await _fetchAllTasks();
+      print('Fetched tasks: $tasks'); // Debug log
       final toolCounts = _calculateToolTaskCounts(tasks);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('cached_tasks', jsonEncode(tasks));
       if (mounted) {
         setState(() {
-          _cachedTasks = tasks;
+          _cachedTasks = tasks.map((task) {
+            return {
+              ...task,
+              'createdAt': task['createdAt'] is String
+                  ? DateTime.parse(task['createdAt'])
+                  : (task['createdAt'] is Timestamp
+                  ? (task['createdAt'] as Timestamp).toDate()
+                  : DateTime.now()),
+            };
+          }).toList();
           _toolTaskCounts = toolCounts;
           isLoading = false;
           _todayExpandedTasks.clear();
@@ -169,10 +193,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final userDocRef = FirebaseFirestore.instance.collection('userData').doc(userId);
     final userDocSnapshot = await userDocRef.get();
-    if (!userDocSnapshot.exists) return [];
+    if (!userDocSnapshot.exists) {
+      print('User document does not exist for userId: $userId'); // Debug log
+      return [];
+    }
 
     final toolsSnapshot = await userDocRef.collection('tools').get();
-    if (toolsSnapshot.docs.isEmpty) return [];
+    if (toolsSnapshot.docs.isEmpty) {
+      print('No tools found for userId: $userId'); // Debug log
+      return [];
+    }
 
     for (final toolDoc in toolsSnapshot.docs) {
       final toolId = toolDoc.id;
@@ -182,6 +212,8 @@ class _HomeScreenState extends State<HomeScreen> {
           .doc(toolId)
           .collection('tasks')
           .get();
+
+      print('Tool: $toolId, Tasks found: ${tasksSnapshot.docs.length}'); // Debug log
 
       for (final taskDoc in tasksSnapshot.docs) {
         final data = taskDoc.data();
@@ -196,7 +228,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ? (data['createdAt'] as Timestamp).toDate().toIso8601String()
               : data['createdAt'] is String
               ? data['createdAt']
-              : '',
+              : DateTime.now().toIso8601String(),
         });
       }
     }
@@ -259,6 +291,43 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('cached_tasks', jsonEncode(_cachedTasks));
+  }
+
+  Future<void> _editTask(String taskId) async {
+    if (userId == null) return;
+
+    final task = _cachedTasks.firstWhere((task) => task['taskId'] == taskId);
+    final taskType = task['taskType'].toLowerCase();
+
+    if (taskType == 'to-do') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ToDoToolPage(
+            taskType: task['taskType'],
+            taskId: taskId,
+            initialTitle: task['title'],
+            initialPriority: task['priority'],
+          ),
+        ),
+      );
+    } else if (taskType == 'workout') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WorkoutToolPage(
+            taskType: task['taskType'],
+            taskId: taskId,
+            initialTitle: task['title'],
+            initialPriority: task['priority'],
+          ),
+        ),
+      );
+    }
+
+    if (mounted) {
+      _fetchTasks(); // Refresh tasks after editing
+    }
   }
 
   Widget _buildSearchBar(bool isEnabled) {
@@ -349,11 +418,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
 
-    if (_isOnline) {
-      _fetchUserName();
-      _fetchTasks();
-    }
-
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((results) {
       if (mounted) {
         setState(() {
@@ -427,7 +491,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [color.withOpacity(1.0), Colors.white],
+                        colors: [Colors.white, Colors.white],
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
                       ),
@@ -487,19 +551,57 @@ class _HomeScreenState extends State<HomeScreen> {
                                     IconButton(
                                       icon: Icon(Icons.check, color: Colors.black87, size: screenWidth * 0.06),
                                       onPressed: () {
-                                        _markAsDone(taskId);
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: const Text('Confirm Action'),
+                                            content: const Text('Are you sure you want to mark this task as done?'),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(context).pop(),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              TextButton(
+                                                onPressed: () {
+                                                  Navigator.of(context).pop();
+                                                  _markAsDone(taskId);
+                                                },
+                                                child: const Text('Confirm'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
                                       },
                                     ),
                                     IconButton(
                                       icon: Icon(Icons.delete, color: Colors.black87, size: screenWidth * 0.06),
                                       onPressed: () {
-                                        _deleteTask(taskId, taskType);
+                                        showDialog(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: const Text('Confirm Action'),
+                                            content: const Text('Are you sure you want to delete this task?'),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.of(context).pop(),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              TextButton(
+                                                onPressed: () {
+                                                  Navigator.of(context).pop();
+                                                  _deleteTask(taskId, taskType);
+                                                },
+                                                child: const Text('Confirm'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
                                       },
                                     ),
                                     IconButton(
                                       icon: Icon(Icons.edit, color: Colors.black87, size: screenWidth * 0.06),
                                       onPressed: () {
-                                        // Handle edit
+                                        _editTask(taskId);
                                       },
                                     ),
                                   ],
@@ -559,19 +661,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final tools = ['To-do', 'Workout', 'Water Reminder', 'Diet', 'Custom Plan'];
 
-    // Get today's date in YYYY-MM-DD format
-    final today = DateTime.now();
+    final today = DateTime.now(); // 08:34 AM PST, May 15, 2025
     final todayString = "${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
 
-    // Filter tasks for today (createdAt date matches today) and apply search query
     final filteredTasks = _cachedTasks
         .where((task) =>
     !(task['completed'] as bool) &&
         task['title'].toLowerCase().contains(searchQuery.toLowerCase()) &&
-        task['createdAt'].startsWith(todayString))
+        (task['createdAt'] as DateTime).toIso8601String().startsWith(todayString))
         .toList();
 
-    // Filter ongoing tasks (all incomplete tasks) and apply search query
     final onGoingTasks = _cachedTasks
         .where((task) =>
     !(task['completed'] as bool) &&
@@ -582,8 +681,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_todaySortOption == 'Sort by Name') {
         return a['title'].toLowerCase().compareTo(b['title'].toLowerCase());
       } else if (_todaySortOption == 'Sort by Date') {
-        final aDate = a['createdAt'] != '' ? DateTime.parse(a['createdAt']) : DateTime(0);
-        final bDate = b['createdAt'] != '' ? DateTime.parse(b['createdAt']) : DateTime(0);
+        final aDate = a['createdAt'] as DateTime;
+        final bDate = b['createdAt'] as DateTime;
         return bDate.compareTo(aDate);
       } else if (_todaySortOption == 'Sort by Type') {
         return _typeToInt(a['taskType']).compareTo(_typeToInt(b['taskType']));
@@ -596,8 +695,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_onGoingSortOption == 'Sort by Name') {
         return a['title'].toLowerCase().compareTo(b['title'].toLowerCase());
       } else if (_onGoingSortOption == 'Sort by Date') {
-        final aDate = a['createdAt'] != '' ? DateTime.parse(a['createdAt']) : DateTime(0);
-        final bDate = b['createdAt'] != '' ? DateTime.parse(b['createdAt']) : DateTime(0);
+        final aDate = a['createdAt'] as DateTime;
+        final bDate = b['createdAt'] as DateTime;
         return bDate.compareTo(aDate);
       } else if (_onGoingSortOption == 'Sort by Type') {
         return _typeToInt(a['taskType']).compareTo(_typeToInt(b['taskType']));

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:software_development/screens/signin_screen.dart'; // Import your SignIn screen here
+import 'package:software_development/screens/home/start_page_UI.dart';
 import 'package:software_development/screens/main_navigation.dart';
 
 class ProfileIconSettings extends StatefulWidget {
@@ -139,7 +139,7 @@ class _ProfileIconSettingsState extends State<ProfileIconSettings> {
               Navigator.of(context).pop(); // Close the dialog
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const SignInScreen()),
+                MaterialPageRoute(builder: (context) => const StartPage()),
               );
             },
             child: const Text('Log out'),
